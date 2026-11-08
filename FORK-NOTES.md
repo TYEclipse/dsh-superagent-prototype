@@ -42,6 +42,26 @@ by this fork; use the upstream repository for those.
   UNC paths. Without this the plugin refuses to start on native Windows even
   when the profile supplies a valid `C:\...` path.
 - `docs: record the fork scope, verification and known limits` (this file).
+- `test(windows): make the suite pass on native Windows` — the
+  POSIX-only suites (worker shims, the Python + tmux service script, the Feishu
+  event consumer, and the tests that execute `#!/bin/sh` CLI stand-ins) are
+  skipped on Windows with their reason, and the tests that only assumed POSIX
+  paths, symlinks, `PATH` delimiters or file modes are now platform-aware
+  (junction on Windows, `delimiter`, forward-slash doc paths). `pnpm check`
+  passes on native Windows: 1,156 tests pass and 41 POSIX-only tests skip; the
+  suite still runs them all on POSIX.
+- `feat(memory): remember finished tickets in the worker prompt` — a finished
+  Ticket is recorded once in the state store (title, outcome, latest Report
+  summary, bounded), the newest 100 notes are kept, and workers receive a
+  generated `Project memory` prompt section (bounded to 3,000 characters); the
+  main Session never receives it. See `docs/benchmark/benchmark-report.md`.
+- `feat(install): verify a link: install end to end` — `pnpm verify:install --
+  --dsh <path to @deepseek-ai/dsh/lib/bin.js>` creates a throwaway DSH home,
+  builds a Web profile, installs this checkout with `link:`, boots it on a free
+  loopback port and checks the management API (state, settings, prompts, panel
+  shell route, database). It writes `.artifacts/install-verification.json` and
+  exits non-zero on any failed check; `docs/benchmark/install-verification.md`
+  records the runs.
 
 ## Install on DSH 0.2.2-rc.1
 

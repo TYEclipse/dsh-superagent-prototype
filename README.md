@@ -36,6 +36,10 @@ Read the numbered documents in order; each builds only on the ones before it.
 
 `pnpm check` runs the typecheck, the tests and the build.
 
+`pnpm verify:install -- --dsh <path to @deepseek-ai/dsh/lib/bin.js>` installs this checkout into a throwaway
+profile with `link:`, boots it and checks the panel API; see
+[docs/benchmark/install-verification.md](docs/benchmark/install-verification.md).
+
 ## License
 
 [MIT](LICENSE)

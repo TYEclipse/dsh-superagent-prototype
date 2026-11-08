@@ -6,7 +6,11 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it as vitestIt } from 'vitest'
+
+// The service script is Python 3 + tmux and stays POSIX-only (FORK-NOTES.md); its tests need `/bin/sh`,
+// `sleep`, `ps`, `tmux` and POSIX signals, so on native Windows they are skipped rather than failed.
+const it = process.platform === 'win32' ? vitestIt.skip : vitestIt
 
 let root: string
 let server: Server | undefined
