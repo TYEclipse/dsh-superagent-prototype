@@ -62,6 +62,15 @@ by this fork; use the upstream repository for those.
   shell route, database). It writes `.artifacts/install-verification.json` and
   exits non-zero on any failed check; `docs/benchmark/install-verification.md`
   records the runs.
+- `feat(executor): classify failures by the recovery they permit` — the
+  Executor's `transient()` regex becomes `classifyFailure` in
+  `src/executor/failure.ts`: network, rate-limit, overloaded and 5xx failures
+  retry with backoff (honouring a provider `retry-after`), while authentication,
+  billing and context-length failures are not retried and reach a person.
+- `test(architecture): enforce the import rules` — `tests/architecture.spec.ts`
+  checks that relative imports resolve, `src/core` imports only itself and
+  `node:` built-ins, Sources never import the application layer, and the panel
+  imports only the plain values of `src/app/api.ts` from the host side.
 
 ## Install on DSH 0.2.2-rc.1
 

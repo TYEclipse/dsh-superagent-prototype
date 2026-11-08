@@ -10,13 +10,13 @@ that the plugin loads and serves its panel. This file records the runs used by t
 
 | | |
 | --- | --- |
-| Date | 2026-11-09 07:08 CST (2026-11-08T23:08Z) |
+| Date | 2026-11-09 07:38 CST (2026-11-08T23:38Z) |
 | Host | Windows 11, Node.js 24.13.0, pnpm 11.7.0 |
 | DSH | `@deepseek-ai/dsh` **0.2.2-rc.1** (local install at `C:\Users\tyecl\.dsh\tmp\dsh-022`) |
-| Checkout | commit `086ec65d855ae6461b44ebb0ec91ad541c6d05e8` |
-| Command | `node scripts/verify-install.mjs --dsh <…>/node_modules/@deepseek-ai/dsh/lib/bin.js --receipt .artifacts/final-install.json` |
+| Checkout | commit `57a15287fc06bfef14452aab4f7a2da9b0606df6` |
+| Command | `node scripts/verify-install.mjs --dsh <…>/node_modules/@deepseek-ai/dsh/lib/bin.js --receipt .artifacts/round4-final.json` |
 | Result | **exit 0 — 13/13 checks passed** |
-| Receipt | `.artifacts/final-install.json` (git-ignored; contents below) |
+| Receipt | `.artifacts/round4-final.json` (git-ignored; contents below) |
 
 ### Checks
 
@@ -42,6 +42,8 @@ process and removed the throwaway home. Nothing in the operator's `~/.dsh` profi
 
 ## Earlier runs
 
+- **Round 3 (`086ec65`, 07:08 CST):** 13/13 checks at `.artifacts/final-install.json`; this was the production commit of
+  PR #3 before its documentation commit `e0bb605`.
 - **Round 1 (baseline boot, 2026-11-08 19:47 CST):** the bundle was linked into a throwaway profile on
   `127.0.0.1:3099` with DSH 0.2.2-rc.1; `GET /orchestrator/api/state` returned 200 with the normal
   `repositoryUnset` setup state and the runtime health `paused (setupPending)`.
