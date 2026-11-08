@@ -145,7 +145,7 @@ describe('Source registry', () => {
     expect(sources.channelAllowed(feishuChannel('oc_dm', 'om_1', true))).toBe(false)
     expect(sources.channelAllowed({ source: 'github', address: { number: '7' } })).toBe(true)
   })
-  it('delivers a reply to a direct message under the default settings', async () => {
+  it('delivers a message to a direct message chat under the default settings', async () => {
     const sources = new SourceRegistry(() => SettingsSchema.parse({}))
     sources.register(feishuKind)
     const trigger = feishuTrigger({ message_id: 'om_dm', chat_id: 'oc_dm', chat_type: 'p2p', sender_id: 'ou_alice', sender_type: 'user',
@@ -157,6 +157,6 @@ describe('Source registry', () => {
     const run = vi.spyOn(commands, 'run').mockResolvedValue('{"ok":true,"data":{}}')
     const reply: OutboundMessage = { id: 'reply-1', channel, text: 'Done', kind: 'reply' }
     expect(await sources.send(reply, commands)).toBe('sent')
-    expect(run.mock.calls[0]![1]).toEqual(expect.arrayContaining(['+messages-reply', '--message-id', 'om_dm']))
+    expect(run.mock.calls[0]![1]).toEqual(expect.arrayContaining(['+messages-send', '--chat-id', 'oc_dm']))
   })
 })

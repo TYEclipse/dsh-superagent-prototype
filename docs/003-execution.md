@@ -184,7 +184,7 @@ A message with failed attempts is a system problem until it goes out or is withd
 
 A message is dropped only when its Source no longer listens to the conversation, or when the Source answers that the conversation can never receive it; while its Source is off, it waits.
 
-The Sources answer that for a deleted Issue or a locked conversation on GitHub, and for a recalled message or one Feishu no longer finds on Feishu.
+The Sources answer that for a deleted Issue or a locked conversation on GitHub, and for a chat Feishu no longer finds on Feishu.
 
 A reply to a review comment that no longer exists goes to the pull request's conversation instead.
 
