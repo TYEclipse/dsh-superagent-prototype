@@ -15,7 +15,9 @@ export const feishuChatLink = (brand: 'feishu' | 'lark', chatId: string): string
  * timeouts or crashes do not.
  */
 const gone = (error: unknown): boolean => error instanceof CliError && error.code !== undefined
-  && ((error.code === 230001 && /invalid receive_id/i.test(error.message)) || (Math.floor(error.code / 100) === 2300 && /not found/i.test(error.message)))
+  && ((error.code === 230001 && /invalid receive_id/i.test(error.message))
+    || (error.code === 230011 && /withdrawn|recalled/i.test(error.message))
+    || (Math.floor(error.code / 100) === 2300 && /not found/i.test(error.message)))
 /** Posts in the chat as a new message, not a reply under another one; Feishu keeps at most one message per idempotency key (the outgoing message's `message.id`). */
 export async function sendFeishu(host: Pick<SourceContext, 'commands'>, message: OutboundMessage): Promise<'sent' | 'gone'> {
   const chatId = message.channel.address.chatId

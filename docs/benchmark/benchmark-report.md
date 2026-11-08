@@ -30,8 +30,10 @@ benchmark therefore compares **mechanisms that transfer to a bundle**, not featu
 | Durable sessions | One SQLite `SessionDB` shared by CLI, ACP adapter and `session_search`; resume reloads from the store (`acp_adapter/session.py:1-5`) | SQLite domain store plus DSH `SessionPersistence`; Sessions resume by id, Tickets keep their worker Session (`docs/003-execution.md:144-152`) | Equivalent in intent; the host owns transcript storage. |
 | Typed verdicts / phases | Tool round is a module with a 3-value verdict (`continue | break | return`) and persist-before-execute (`agent/turn_tool_round.py:29-34,56-59`) | The Engine is a set of synchronous commands in one transaction, with role `Pick`s and past-tense adapter facts (`docs/007-architecture.md:48-72`) | Both make the transition set small; no change needed. |
 
-**Adopted change:** none in production code. The benchmark confirmed the existing module boundaries, and the
-PDCA work added a Windows-portable test suite instead of new layers.
+**Adopted change:** none in production code. The benchmark confirmed the existing module boundaries; the
+PDCA work added a Windows-portable test suite and, in a later round, `tests/architecture.spec.ts` to enforce the
+documented import rules (relative imports resolve; `src/core` imports only itself and `node:` built-ins; Sources
+never import the application; the panel imports only the plain values of `src/app/api.ts`).
 
 ### 1.2 Orchestration
 
@@ -44,6 +46,13 @@ PDCA work added a Windows-portable test suite instead of new layers.
 
 **Adopted change:** none in this iteration. The queue, retry and slot machinery already match the transferable
 part of hermes-agent; the classifier is the one gap, and its provider-specific half does not belong in a bundle.
+
+**Adopted change — typed failure classification (second round).** `src/executor/failure.ts` classifies one failure
+as `network`, `rate-limit`, `overloaded`, `server`, `auth`, `budget`, `context` or `unknown`, with `retryable` and
+an optional `retry-after` hint. Network, rate-limit, overload and 5xx failures retry with backoff; the turn-retry
+delay uses the provider hint when one is present, capped at five minutes. Authentication, billing and context-length
+failures are not retried, so the Ticket reaches a person instead of burning its attempts. `transient()` remains the
+compatibility entry point and delegates to the classifier.
 
 ### 1.3 Memory
 
@@ -85,6 +94,8 @@ Every item below is implemented and verified in this branch.
 | 1 | Install / upgrade | Make `pnpm check` pass on native Windows so the documented gate is meaningful here | `pnpm check` exits 0; POSIX-only suites skip with their reason; Windows path/symlink/PATH assumptions fixed | Done in `61d27d1` |
 | 2 | Memory | Project memory from finished Tickets, injected into the worker prompt | `tests/memory.spec.ts`; note cap, dedupe, character budgets; worker-only prompt section | Done in `086ec65` |
 | 3 | Install / upgrade | Repeatable link-install verification against a throwaway profile | `scripts/verify-install.mjs`; 13 checks including panel API 200 and a written receipt | Done in `086ec65` |
+| 4 | Orchestration | Typed failure classification instead of one regex: network, rate-limit, overload and server failures retry (honouring `retry-after`); auth, billing and context-length failures reach a person | `src/executor/failure.ts` + `tests/failure.spec.ts`; `transient()` delegates to it; the turn-retry delay uses the provider hint | Done in this PR |
+| 5 | Architecture | Enforce the documented import rules as tests instead of prose only | `tests/architecture.spec.ts`: relative imports resolve, `src/core` stays inside itself, Sources never import the app, the panel imports only `src/app/api.ts` values | Done in this PR |
 
 The list is cleared. Rounds that produced no production change (orchestration, architecture) are recorded in §1
 with the evidence for why no transferable gap remained.
@@ -112,6 +123,7 @@ with the evidence for why no transferable gap remained.
 | 1 | Make the documented gate honest on this host | Scope the POSIX-only suites to POSIX; make doc/path/symlink/fixture tests platform-aware | `pnpm check` exit 0 (1,156 passed, 41 POSIX-only skipped); the existing link profile still answered 200 | Committed `61d27d1` |
 | 2 | Close the memory gap the benchmark found | Add `src/app/memory.ts`, the `runtime/memory` prompt part, the runtime hook and tests | `pnpm check` exit 0; `verify-install.mjs` receipt `ok: true` (13/13 checks, panel API 200) | Committed `086ec65` |
 | 3 | Prove the install from outside and record it | Add `scripts/verify-install.mjs` and its documentation; run it for the final revision | Receipt with commit, DSH version, every check and the panel answers; see [install-verification.md](install-verification.md) | Final commit and PR |
+| 4 | Close the orchestration and architecture gaps left in §1 | Add `src/executor/failure.ts` and wire it into `DshExecutor`; add `tests/architecture.spec.ts` | `tests/failure.spec.ts` and `tests/architecture.spec.ts` pass; `pnpm check` exits 0; `verify-install.mjs` passes again | This PR |
 
 ## 5. Sources
 
