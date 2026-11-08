@@ -13,7 +13,7 @@ import { pollThreads as pollGithubThreads } from '../src/sources/github.ts'
 import { SourceRegistry } from '../src/sources/registry.ts'
 import { cursorAt, POLL_HORIZON_MS } from '../src/sources/poll.ts'
 import { Store } from '../src/app/store.ts'
-import { Commands, commandError } from '../src/infra/commands.ts'
+import { CliError, Commands, commandError } from '../src/infra/commands.ts'
 import { HealthBoard } from '../src/infra/health.ts'
 import { testDeployment } from './fixtures/deployment.ts'
 import { SettingsSchema, settingsPolicy } from '../src/policy.ts'
@@ -1111,8 +1111,8 @@ describe('feishu event consumer', () => {
   }, 20_000)
   it('keeps a chat\'s history cursor when its read fails, and recovers known direct chats only while direct messages are on', async () => {
     const hour = new Date(Date.now() - 3_600_000).toISOString()
-    const recovered = async (directMessages: boolean) => {
-      const chat = (chatId: string) => ({ chatId, listen: 'mentions' })
+    const recovered = async (directMessages: boolean, denied = false, listen: 'all' | 'mentions' = 'mentions') => {
+      const chat = (chatId: string) => ({ chatId, listen })
       const { ctx, health, store } = consumerSource(cli('ready'), { chats: [chat('oc_a'), chat('oc_b')], directMessages })
       store.set(KV.feishu.chats, { oc_dm: true, oc_a: false })
       for (const chat of ['oc_a', 'oc_b', 'oc_dm']) store.set(KV.feishu.history(chat), hour)
@@ -1120,12 +1120,12 @@ describe('feishu event consumer', () => {
       const lark = vi.spyOn(Commands.prototype, 'lark').mockImplementation(async args => {
         const params = args[2] === '/open-apis/im/v1/messages' ? JSON.parse(args.at(-1)!) as { container_id: string } : undefined
         if (params) chats.push(params.container_id)
-        if (params?.container_id === 'oc_a') throw new Error('rate limited')
+        if (params?.container_id === 'oc_a') throw denied ? new CliError('permission denied', 230027) : new Error('rate limited')
         return { has_more: false, items: [] }
       })
       const stop = new AbortController()
       const loops = runFeishu(ctx, AbortSignal.any([stop.signal, controller.signal]))
-      await vi.waitFor(() => expect(['ready', 'error']).toContain(health.history?.state), until)
+      await vi.waitFor(() => expect(['ready', 'error', 'paused']).toContain(health.history?.state), until)
       stop.abort(); await loops; lark.mockRestore()
       const cursors = Object.fromEntries(['oc_a', 'oc_b', 'oc_dm'].map(chat => [chat, store.get(KV.feishu.history(chat))]))
       const result = { chats, cursors, history: health.history }
@@ -1142,6 +1142,15 @@ describe('feishu event consumer', () => {
     const off = await recovered(false)
     expect(off.chats).toEqual(['oc_a', 'oc_b'])
     expect(off.cursors.oc_dm).toBe(hour)
+    // A chat that must receive all messages pauses history recovery instead of keeping the Source in error; the cursor stays.
+    const blocked = await recovered(true, true, 'all')
+    expect(blocked.chats).toEqual(['oc_a', 'oc_b', 'oc_dm'])
+    expect(blocked.history).toMatchObject({ state: 'paused', detail: expect.stringContaining('oc_a: Error: permission denied') })
+    expect(blocked.cursors.oc_a).toBe(hour)
+    // A mentions-only chat does not need the whole history: the permission failure is left to its live events and Thread polling.
+    const ignored = await recovered(true, true)
+    expect(ignored.history?.state).toBe('ready')
+    expect(ignored.cursors.oc_a).toBe(hour)
   }, 20_000)
   it('reports an error when the consumer is not ready within 45 seconds', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

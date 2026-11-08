@@ -48,7 +48,7 @@ Both presets run with `danger-full-access` as the operator's OS user and read me
 
 ### Feishu bot (optional)
 
-1. Create a self-built app with the bot capability. Grant it the permissions to receive message events, read and send chat messages, and read chat members, then publish the app version.
+1. Create a self-built app with the bot capability. Grant it the permissions to receive message events, read and send chat messages, and read chat members, then publish the app version. A chat that receives all messages also needs the **Read all messages in associated group chat** (`im:message.group_msg`) permission: without it Feishu answers the history read with `230027`, and the Source keeps only live events.
 2. Give the bot its own `lark-cli` configuration, restricted to the bot identity, and a wrapper:
 
    ```sh
@@ -263,6 +263,7 @@ Setup problems appear on the overview with a link to the fix, in the panel's lan
 | `The bot lark-cli allows user identities` | Point the Feishu Source at a bot-only configuration, as in Feishu bot above |
 | `The bot lark-cli does not work.` or `The bot identity of app … is …` | Check the configuration's app id and secret |
 | `The Feishu bot is not a member of the chat.` | Add the bot to the chat in the chat's settings; the next attempt succeeds |
+| Feishu history reports `access denied for this bot operation (230027)` | The app cannot read the group's message history: enable **Read all messages in associated group chat** (`im:message.group_msg`) in the Feishu developer console and publish a new app version. Until then history recovery stays paused while live events continue; a chat that only needs @ mentions does not have to be configured for all messages. |
 | `status` exits 2 | A part reports an error, which a restart does not fix: `errors` names each part, as listed under Management API, with its detail; each part clears its own entry once it works again |
 | `status` exits 3 | Setup waits: `setup` says what is missing, and the overview links to the setting that fixes it |
 | `status` exits 1 | The service does not run, runs twice, does not answer, or its runtime reports an error; the output and the newest log say which |
