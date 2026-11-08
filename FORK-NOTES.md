@@ -42,6 +42,14 @@ by this fork; use the upstream repository for those.
   UNC paths. Without this the plugin refuses to start on native Windows even
   when the profile supplies a valid `C:\...` path.
 - `docs: record the fork scope, verification and known limits` (this file).
+- `test(windows): make the suite pass on native Windows` — the
+  POSIX-only suites (worker shims, the Python + tmux service script, the Feishu
+  event consumer, and the tests that execute `#!/bin/sh` CLI stand-ins) are
+  skipped on Windows with their reason, and the tests that only assumed POSIX
+  paths, symlinks, `PATH` delimiters or file modes are now platform-aware
+  (junction on Windows, `delimiter`, forward-slash doc paths). `pnpm check`
+  passes on native Windows: 1,156 tests pass and 41 POSIX-only tests skip; the
+  suite still runs them all on POSIX.
 
 ## Install on DSH 0.2.2-rc.1
 
