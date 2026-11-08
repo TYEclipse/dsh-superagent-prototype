@@ -112,7 +112,10 @@ const THREAD_DECISIONS = 5
 const triggerLine = (trigger: Trigger) => ({ trigger_id: trigger.id, actor: trigger.actor.id, human: trigger.human, at: trigger.at,
   preview: preview(trigger.text), chars: trigger.text.length, read: `trigger/${trigger.id}` })
 async function transcript(host: ResourceHost, ticketId: string) {
-  return (await host.context.sessionController.inspect(workerSessionId(ticketId) as SessionId)).events
+  // Read the stored event log directly: the SessionController's typed event snapshot
+  // (`inspect`) was removed in DSH 0.2.2, and history pages carry wire-form events instead.
+  const handle = await host.context.sessionPersistence.open(workerSessionId(ticketId) as SessionId, 'read')
+  try { return (await handle.read()).events } finally { await handle.close() }
 }
 
 const ROUTES: readonly Route[] = [
