@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { threadKey, type Thread, type Trigger } from '../core/index.ts'
 import { feishuChatLink } from './feishu-channel.ts'
 import type { FeishuBot } from '../deployment.ts'
-import { validItems, type Tally } from '../infra/commands.ts'
+import { CliError, validItems, type Tally } from '../infra/commands.ts'
 import { readFeishu, type FeishuRef } from './feishu-read.ts'
 import { feishuRef, feishuTime, feishuTrigger, HistoricalMessageSchema, historyEvent, HistoryPageSchema, SOURCE, topicEvent }
   from './feishu-trigger.ts'
@@ -138,7 +138,9 @@ async function backfillLoop(ctx: SourceContext, signal: AbortSignal): Promise<vo
     const seen = ctx.state.get(KV.feishu.chats) ?? {}
     const known = Object.entries(seen).filter(([, direct]) => direct && config.directMessages)
     const chats = { ...Object.fromEntries(config.chats.map(chat => [chat.chatId, false])), ...Object.fromEntries(known) }
+    const listen = new Map(config.chats.map(chat => [chat.chatId, chat.listen]))
     const errors: string[] = []
+    const blocked: string[] = []
     const tally = { skipped: 0 }
     for (const [chatId, direct] of Object.entries(chats)) {
       if (signal.aborted) break
@@ -149,13 +151,25 @@ async function backfillLoop(ctx: SourceContext, signal: AbortSignal): Promise<vo
       try {
         await backfillChat(ctx, chatId, direct, since, started, signal, tally)
         if (!signal.aborted) ctx.state.set(cursorKey, cursorAt(started))
-      } catch (error) { if (!signal.aborted) errors.push(`${chatId}: ${String(error)}`) }
+      } catch (error) {
+        if (signal.aborted) continue
+        const failure = `${chatId}: ${String(error)}`
+        // 230027 means the app lacks a permission the operator grants in the Feishu console. A mentions-only chat does not
+        // need the whole chat history, so leave it to live events and Thread polling; any other chat pauses history until
+        // the permission is published, and the next round recovers by itself.
+        if (error instanceof CliError && error.code === 230027) {
+          if (!direct && listen.get(chatId) === 'mentions') continue
+          blocked.push(failure)
+        } else errors.push(failure)
+      }
     }
     await pollThreads(ctx, signal, tally)
     const skipped = tally.skipped ? `; ${tally.skipped} unreadable messages skipped` : ''
     if (!signal.aborted) ctx.report('history', errors.length
-      ? { state: 'error', detail: errors.join('\n') }
-      : { state: 'ready', detail: `Configured groups and known direct chats recovered${skipped}`, at: new Date().toISOString() })
+      ? { state: 'error', detail: [...errors, ...blocked].join('\n') }
+      : blocked.length
+        ? { state: 'paused', detail: blocked.join('\n') }
+        : { state: 'ready', detail: `Configured groups and known direct chats recovered${skipped}`, at: new Date().toISOString() })
     await delay(60_000, undefined, { signal }).catch(() => {})
   }
 }

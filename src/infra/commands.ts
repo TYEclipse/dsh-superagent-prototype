@@ -52,6 +52,12 @@ function membership(error: unknown): unknown {
   const hint = 'The Feishu bot is not a member of the chat. Add the bot in the chat settings, then retry.'
   return new CliError(hint, error.code, error.exitCode)
 }
+/** Rewrites Feishu error 230027 (the app lacks a permission the operation needs) with where to grant it. */
+function authorization(error: unknown): unknown {
+  if (!(error instanceof CliError) || error.code !== 230027) return error
+  const hint = 'The Feishu app lacks a permission this command needs (230027). Enable the permission in the Feishu developer console and publish a new app version. Reading a group\'s message history needs "Read all messages in associated group chat" (im:message.group_msg).'
+  return new CliError(hint, error.code, error.exitCode)
+}
 /**
  * Executes gh, lark-cli, and git subprocesses with deployment account credentials, timeouts, and abort signals.
  * Restricts GitHub API calls to the configured repository and translates CLI failures into CliError instances for Sources, MasterAssessor, Outbox, and Settings.
@@ -104,10 +110,10 @@ export class Commands {
     const bot = this.deployment.feishu
     if (!bot) throw new Error('The Feishu Source has no working bot CLI')
     const output = await this.run(bot.cli, [...args, '--as', 'bot', '--format', 'json'], cwd)
-      .catch((error: unknown) => { throw membership(error) })
+      .catch((error: unknown) => { throw authorization(membership(error)) })
     const result = JSON.parse(output) as { ok: boolean; data: T; error?: { code?: number; message?: string } }
     const code = result.error?.code
-    if (!result.ok) throw membership(new CliError(`${result.error?.message ?? 'Feishu command failed'}${code ? ` (${code})` : ''}`, code))
+    if (!result.ok) throw authorization(membership(new CliError(`${result.error?.message ?? 'Feishu command failed'}${code ? ` (${code})` : ''}`, code)))
     return result.data
   }
   /** Runs `git` on PATH using the agent's isolated git environment and credential helper. */

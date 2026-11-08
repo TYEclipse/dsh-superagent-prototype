@@ -173,6 +173,15 @@ it('says how to add the bot to a chat when Feishu answers that it is not a membe
   run.mockResolvedValueOnce(JSON.stringify({ ok: false, error: { code: 232011, message: 'operator is not in the chat' } }))
   await expect(commands.lark(['im', '+chat-members-list'])).rejects.toMatchObject({ message: hint, code: 232011 })
 })
+it('says where to grant the missing permission when Feishu answers 230027, and keeps the code', async () => {
+  const commands = new Commands(() => deployment, {}, new AbortController().signal)
+  const denied = JSON.stringify({ error: { code: 230027, message: 'access denied for this bot operation' } })
+  const run = vi.spyOn(commands, 'run').mockRejectedValueOnce(commandError({ stderr: denied, code: 1 }))
+  const hint = 'The Feishu app lacks a permission this command needs (230027). Enable the permission in the Feishu developer console and publish a new app version. Reading a group\'s message history needs "Read all messages in associated group chat" (im:message.group_msg).'
+  await expect(commands.lark(['api', 'GET', '/open-apis/im/v1/messages'])).rejects.toMatchObject({ message: hint, code: 230027, exitCode: 1 })
+  run.mockResolvedValueOnce(JSON.stringify({ ok: false, error: { code: 230027, message: 'access denied for this bot operation' } }))
+  await expect(commands.lark(['api', 'GET', '/open-apis/im/v1/messages'])).rejects.toMatchObject({ message: hint, code: 230027 })
+})
 it.skipIf(process.platform === 'win32')('names only the program and how it ended when a command prints no diagnostics, never its arguments', async () => {
   const commands = new Commands(() => deployment, {}, new AbortController().signal)
   const secret = 'secret reply text'
