@@ -56,7 +56,9 @@ describe('account-isolated operations', () => {
   it('uses Feishu bot identity and one idempotency key on retries', async () => {
     const commands = new Commands(() => deployment, {}, new AbortController().signal); const run = vi.spyOn(commands,'run').mockResolvedValue('{"ok":true,"data":{}}')
     await send(commands, { ...reply, channel: feishuChannel('oc_1', 'om_1') })
-    expect(run.mock.calls[0]![1]).toEqual(expect.arrayContaining(['--as','bot','--idempotency-key','stable-operation','--message-id','om_1']))
+    expect(run.mock.calls[0]![1]).toEqual(expect.arrayContaining(['--as','bot','--idempotency-key','stable-operation','--chat-id','oc_1']))
+    // A new message in the chat, not a reply under the one that asked for the work.
+    expect(run.mock.calls[0]![1]).not.toContain('--message-id')
   })
 })
 
@@ -69,21 +71,23 @@ describe('Channels', () => {
   const commands = () => new Commands(() => deployment, {}, new AbortController().signal)
   const feishu = { ...reply, channel: feishuChannel('oc_1', 'om_1') }
   const lark = (code: number, message: string) => commandError({ stderr: JSON.stringify({ error: { code, message } }), code: 1 })
-  it('drop a Feishu reply to a recalled message or one Feishu no longer finds, and say how to add the bot to a chat', async () => {
+  it('drop a Feishu message whose chat no longer accepts one, and say how to add the bot to a chat', async () => {
     const value = commands()
     const run = vi.spyOn(value, 'run')
-    for (const [code, message] of [[230011, 'The message is recalled'], [230001, 'message not found'], [231003,
-      'The message is withdrawn']] as const) {
+    for (const [code, message] of [[230001, 'invalid receive_id'], [230002, 'chat not found']] as const) {
       run.mockRejectedValueOnce(lark(code, message))
       expect(await send(value, feishu)).toBe('gone')
     }
+    // An invalid parameter that is not the chat keeps the message for a retry.
+    run.mockRejectedValueOnce(lark(230001, 'invalid request parameter, ext=invalid content'))
+    await expect(send(value, feishu)).rejects.toThrow('invalid request parameter, ext=invalid content (230001)')
     run.mockRejectedValueOnce(lark(232011, 'operator is not in the chat'))
     const hint = 'The Feishu bot is not a member of the chat. Add the bot in the chat settings, then retry.'
     await expect(send(value, feishu)).rejects.toThrow(hint)
     run.mockRejectedValueOnce(lark(99991400, 'rate limited'))
     await expect(send(value, feishu)).rejects.toThrow('rate limited (99991400)')
   })
-  it('keep a Feishu reply whose command timed out for a retry, whatever its text says', async () => {
+  it('keep a Feishu message whose command timed out for a retry, whatever its text says', async () => {
     const value = commands()
     const timedOut = { killed: true, signal: 'SIGTERM', code: null, stderr: '', message: 'Command failed: lark-bot --markdown withdrawn' }
     vi.spyOn(value, 'run').mockRejectedValueOnce(commandError(timedOut, 'lark-bot'))

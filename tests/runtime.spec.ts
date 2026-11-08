@@ -231,7 +231,7 @@ it('relays an explicit member mention as a candidate and creates the ticket, ack
   expect(runtime.store.threads.get(`feishu:${CHAT}:om_1`)?.subscriptions).toEqual([ticket.id])
   expect(runtime.store.replyStatus(key('ack', trigger.id))).toBe('sent')
   const larkCalls = vi.mocked(Commands.prototype.lark).mock.calls.map(([args]) => args)
-  expect(larkCalls.find(args => args[1] === '+messages-reply')).toEqual(expect.arrayContaining(['--message-id', 'om_1', '--markdown', '收到，修复回归。']))
+  expect(larkCalls.find(args => args[1] === '+messages-send')).toEqual(expect.arrayContaining(['--chat-id', CHAT, '--markdown', '收到，修复回归。']))
   // The first message holds the request itself: an explicit ticket has no assignment text beyond it, and nothing to read first.
   const first = relays(sessionId)[0]!
   expect(first).toEqual({ ticket_id: ticket.id, title: '修复回归', trigger: expect.objectContaining({ trigger_id: trigger.id, from: MEMBER,
@@ -1261,14 +1261,14 @@ it('drops a message only when its conversation is gone or not listened to, newes
   queue('gone-reply', channel.address)
   queue('failing-reply', { ...channel.address, messageId: 'om_8' })
   vi.mocked(Commands.prototype.lark).mockImplementation(async args => {
-    const replying = args.join(' ')
-    if (replying.includes('om_7')) throw new CliError('the message was withdrawn', 230011)
-    if (replying.includes('om_9')) return {}
-    // Text that names a withdrawal is no answer from Feishu that the conversation is gone.
-    throw new Error('Request failed: withdrawn tokens are not recalled messages')
+    const sending = args.join(' ')
+    if (sending.includes('--idempotency-key gone-reply')) throw new CliError('invalid receive_id', 230001)
+    if (sending.includes('--idempotency-key off-reply')) return {}
+    // Text that names a missing chat is no answer from Feishu that the conversation is gone.
+    throw new Error('Request failed: a chat that is not there is not a gone conversation')
   })
   await runtime.sendReplies()
-  // The Feishu Channel reads the recall code as gone; any other failure keeps the reply for a retry.
+  // The Feishu Channel reads a chat Feishu no longer finds as gone; any other failure keeps the message for a retry.
   expect(runtime.store.replyStatus('gone-reply')).toBe('dropped')
   expect(runtime.store.replyStatus('failing-reply')).toBe('pending')
   const settings = runtime.store.settings(), feishuSource = settings.sources.feishu!
@@ -1290,7 +1290,7 @@ it('reports a dropped acknowledgement as dropped, with its Ticket on the Source 
   const { sessionId, ticket } = await acceptedTicket()
   const followup = feishu('10', '还有这个', { mentions: [], root_id: 'om_1' })
   await receive(followup)
-  vi.mocked(Commands.prototype.lark).mockRejectedValue(new CliError('the message was withdrawn', 230011))
+  vi.mocked(Commands.prototype.lark).mockRejectedValue(new CliError('invalid receive_id', 230001))
   expect(await runTool(sessionId, 'orchestrator_ack', { trigger_id: followup.id, text: '收到，也处理这个。' })).toMatchObject({ acknowledgement: 'dropped' })
   expect(await runTool(runtime.masterId, 'orchestrator_read', { resource: `trigger/${followup.id}` })).toMatchObject({ acknowledgement: 'dropped' })
   const dropped = ((await api('GET', 'sources')).body as unknown as { dropped: unknown[] }[]).flatMap(source => source.dropped)
