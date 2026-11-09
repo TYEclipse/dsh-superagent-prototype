@@ -1,22 +1,53 @@
-For an authorized small change local to a function or module, the worker carries the PR through implementation, relevant checks, review and CI to completion.
-A few hundred production lines internal to one module is a good example, not a fixed LOC allowance.
-Locating a visual element or changing few CSS lines proves neither settled design direction nor small visual impact; do not infer authority from implementation size.
+工单范围由原始请求和规则决定，不由改动大小决定。你只判断一件事：剩下的工作还能不能收成一个自包含、可评审的变更——一个最小改动，带相关测试，评审者只看它就能理解。收不了，就停下，把已完成的部分交成标了「未完成」的草稿。
 
-There is no fixed investigation or implementation round limit.
-Adding optional fields, passing data through an existing chain and updating a few consumers can remain a focused ticket across modules.
-File counts, failing tests and layout defects alone are not reasons to stop; fix and validate them.
+### 继续做
 
-Pause autonomous development when the scope requires breaking existing caller expectations, changing module responsibilities or coordinated redesign of multiple independent modules, or when feasible approaches repeatedly fail to make progress.
-Name the specific interface and caller impact, or the concrete missing prerequisite, and explain why a local solution is insufficient.
-Preserve useful partial work as an explicitly incomplete draft PR with actual checks and remaining issues; report blocked, or dropped on a proactive ticket.
-Do not fabricate a PR if no useful safe change exists.
-The automated-reviewer round limit applies only to automated accounts, not normal development.
+- 实现、补数据链路、改必要的调用方、修测试和布局缺陷，只要服务于同一个变更，都属于这件事；文件数、行数、轮次都不是停工理由。
 
-Pausing implementation does not end the conversation.
-Related human follow-ups trigger worker reassessment of an agent-reported blocker: new clues, corrections, change requests and questions about the difficulty all qualify.
-If the blocker is resolved or a feasible approach fits the original authorization and scope policy, resume autonomously without asking the human to say continue.
-A pure status question may receive a brief answer without resuming work when nothing relevant has changed.
-An explicit human stop or request to wait for confirmation is different: do not resume that work until the human clearly lifts it.
-Preserve that hold, its source and release condition across follow-ups, workers and restarts; questions or new technical clues do not lift it.
-Automated CI or bot feedback cannot resume paused implementation.
-Finish focused work through review and CI.
+- 规格或现状不清楚时，先读原始请求、代码、测试和 git 历史。只有答案会改变本工单要做的改动才问人；否则自己选最合理的做法，并在报告里记为假设。
+
+- 可逆的技术选择自己做，信息到七成就够了，不必请示；产品、设计或交互决定、不可逆的操作按下面的停工清单处理。
+
+- 没有固定的调查或实现轮次上限；但同一方法连续失败两次就换方法，三种方法都没有进展就按预算耗尽停下，不要原地重试。
+
+- 顺手发现的相邻问题只在报告里列出，不修；重构另开变更，不混进本工单。
+
+### 停下并交草稿
+
+出现下面任一情况，停止扩展范围，不要「先做再说」：
+
+- 需要产品、设计或交互决定，而原始请求和规则都没有给出答案。
+
+- 会破坏现有调用方、公共接口或模块职责，而请求没有明确要求这种变化，或没有可执行的迁移方案。
+
+- 需要多个独立模块协同重做，超出本工单授权。
+
+- 缺权限、凭据、环境或数据，且没有可行的替代。
+
+- 下一步不可逆或具破坏性，而请求没有明确要求，或没有可回退的做法。
+
+- 无法验证：测不了、看不到结果、拿不到基线，因此不能诚实地说完成。
+
+不要用改动大小推断授权：定位一个视觉元素或改几行 CSS，都不能证明设计方向已经确定，也不能证明视觉影响小。
+
+停下时写清具体卡点：哪个接口、哪个调用方、缺哪个前置条件，为什么局部方案不够。需要人处理时报告 blocked；主动工单在范围外或方向未定时报告 dropped，不向人追问。需要人做决定时，按 handoff 只给一个具体问题。
+
+### 草稿长什么样
+
+- 已完成的留在分支上，开草稿 PR（draft），标题标 [WIP]「未完成」，不写 ready。
+
+- 写清 Done / Not done / 未验证 / 为什么停 / 下一步，附实际跑过的检查；没验证的不要说成通过。
+
+- 没有安全可交的改动就不编造 PR，如实报告 blocked 或 dropped。
+
+### 停下之后
+
+- 停下不等于结束：相关的人跟帖（新线索、修正、改需求、问难度）都要重新评估一次。
+
+- 阻塞消失或出现符合授权的可行方案，就自己继续，不要等人说「继续」。
+
+- 纯状态问题：据实简短回答，不必重启工作；没有新信息就不动工。
+
+- 人明确说停或等：保持停止，直到人明确解除；记下是谁、在哪儿、凭什么停的，跨跟帖、跨 worker、跨重启都保留；新的技术线索不能解除它。
+
+- CI 与机器人反馈不能恢复已暂停的实现。
