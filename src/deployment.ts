@@ -71,11 +71,13 @@ export function executable(name: string, path: string, exclude?: string): string
   throw new Error(`${name} is not an executable file${isAbsolute(name) ? '' : ' on PATH'}`)
 }
 
-export type Probe = (argv: string[]) => Promise<string>
+export type Probe = (argv: string[], env?: Record<string, string>) => Promise<string>
 /** Run startup checks through DSH's worker subprocess service with worker shims removed from PATH so a `gh` wrapper script reaches the real binary. */
 export function workerProbe(subprocess: SubprocessRuntime, stateDir: string, cwd: string, signal: AbortSignal): Probe {
   const path = withoutDirectory(process.env.PATH ?? '', workerBin(stateDir))
-  return argv => runAsWorker(subprocess, ['env', `PATH=${path}`, ...argv], cwd, AbortSignal.any([signal, AbortSignal.timeout(60_000)]))
+  // Supply the environment through the subprocess request: a shell `env` wrapper is POSIX-only, and MSYS `env.exe`
+  // rewrites leading-slash arguments on native Windows, which a lark-cli API route such as /open-apis/... cannot survive.
+  return (argv, env) => runAsWorker(subprocess, argv, cwd, AbortSignal.any([signal, AbortSignal.timeout(60_000)]), { PATH: path, ...env })
 }
 
 const GithubUser = z.object({ login: z.string().regex(/^[A-Za-z0-9-]+$/), id: z.number().int().positive() })
@@ -120,7 +122,8 @@ export async function resolveFeishuBot(machine: Machine, feishu: unknown, probe:
   const fail = (error: unknown): never => { throw error instanceof SetupError ? error : new SetupError('feishuCliFailed', { output: reason(error) }) }
   let cli = ''
   try { cli = executable(name, path, workerBin(machine.stateDir)) } catch (error) { fail(error) }
-  const run = (...args: string[]): Promise<string> => probe(['env', 'LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1', 'LARKSUITE_CLI_NO_SKILLS_NOTIFIER=1', cli, ...args]).catch(fail)
+  const run = (...args: string[]): Promise<string> => probe([cli, ...args],
+    { LARKSUITE_CLI_NO_UPDATE_NOTIFIER: '1', LARKSUITE_CLI_NO_SKILLS_NOTIFIER: '1' }).catch(fail)
   const text = await run('auth', 'status')
   const status = parsed(AuthStatus, text.slice(text.indexOf('{')))
   if (!status) return fail(new SetupError('feishuNoApp'))

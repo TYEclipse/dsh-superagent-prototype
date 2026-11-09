@@ -3,11 +3,12 @@ import { bindScopeParent } from '@deepseek-ai/dsh-scope'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import { Runtime } from '../src/app/runtime.ts'
+import { mainTools } from '../src/app/sessions.ts'
 import { jobRegistry } from './fixtures/host.ts'
 import { evalsHealth } from '../src/app/views/overview.ts'
 import { mandateInstructions } from '../src/executor/dsh.ts'
@@ -85,7 +86,7 @@ const OTHER = () => join(directory, 'other-gh')
 const BOT = () => join(directory, 'lark-bot')
 const HELPERS = 'git config -z --show-origin --get-all credential.https://github.com.helper'
 const SCOPED = 'git config -z --show-scope --get-regexp ^(credential\\..*|http\\..*extraheader)$'
-const subprocess = { spawn: vi.fn((spec: { argv: readonly string[] }) => {
+const subprocess = { spawn: vi.fn((spec: { argv: readonly string[]; env?: Record<string, string> }) => {
   // Strip leading `env` and `KEY=VALUE` arguments before looking up the command response.
   const argv = [...spec.argv]
   while (argv[0] === 'env' || /^[A-Z_]+=/.test(argv[0] ?? '')) argv.shift()
@@ -849,11 +850,11 @@ it('reports each setup problem where the operator fixes it, and checks the agent
   answers[`${AGENT()} api repos/acme/widgets --jq {name: .full_name, push: .permissions.push}`] = '{"name":"acme/widgets","push":false}\n'
   await needs('github', 'repositoryReadOnly', { account: 'agent-bot', repository: 'acme/widgets' })
   answers[`${AGENT()} api repos/acme/widgets --jq {name: .full_name, push: .permissions.push}`] = '{"name":"acme/widgets","push":true}\n'
-  // The agent CLI runs in the workers' environment: without the shims on PATH.
-  const check = subprocess.spawn.mock.calls.map(([spec]) => spec.argv).find(argv => argv.includes(AGENT()))!
-  expect(check[0]).toBe('env')
-  expect(check[1]!.startsWith('PATH=')).toBe(true)
-  expect(check[1]!.slice('PATH='.length).split(':')).not.toContain(join(directory, 'worker-bin'))
+  // The agent CLI runs in the workers' environment: a subprocess request without the shims on PATH, not an `env` wrapper.
+  const check = subprocess.spawn.mock.calls.map(([spec]) => spec).find(spec => spec.argv.includes(AGENT()))!
+  expect(check.argv[0]).toBe(AGENT())
+  expect(check.argv).not.toContain('env')
+  expect(check.env?.PATH?.split(delimiter)).not.toContain(join(directory, 'worker-bin'))
   const valid = { ...answers }
   // git older than 2.32 ignores GIT_CONFIG_GLOBAL and reads the operator's configuration.
   answers = { ...valid, [HELPERS]: 'file:/home/me/.gitconfig\0!gh auth git-credential\0' }
@@ -1514,6 +1515,12 @@ it('refuses the main Session a bash command that runs sleep and a long job wait,
   expect(main({ name: 'job_output', arguments: { job_id: 'j', wait: true, timeout_ms: 30_000 } })).toMatch(/^Reports/)
   expect(main({ name: 'job_output', arguments: { job_id: 'j', wait: true, timeout_ms: 5_000 } })).toBeUndefined()
   expect(main({ name: 'job_output', arguments: { job_id: 'j' } })).toBeUndefined()
+  // PowerShell is the shell `pwsh`: the same caps apply, including its own sleep.
+  const pwsh = (command: string) => ({ name: 'pwsh', arguments: { command, description: 'x' } })
+  expect(main(pwsh('Start-Sleep -Seconds 60; gh pr view 7'))).toMatch(/^Reports/)
+  expect(main(pwsh('echo Start-Sleep is data'))).toBeUndefined()
+  expect(main({ name: 'pwsh', arguments: { command: 'gh pr view 7', description: 'x', timeoutMs: 120_000 } })).toMatch(/^Reports/)
+  expect(main({ name: 'pwsh', arguments: { command: 'gh pr view 7', description: 'x', timeoutMs: 20_000 } })).toBeUndefined()
   // A main Session created before runs under standard, whose shell waits 60 seconds by default and whose job waits last 30:
   // a command without a timeout runs in the background or names one, and a job wait names one.
   ;(agents.get(runtime.masterId) as unknown as { session: { header: { agentPreset: string } } }).session.header = { agentPreset: 'standard' }
@@ -1564,6 +1571,13 @@ it('refuses an ended ticket\'s worker its tools, and restricts the main Session 
   // A worker keeps only the profile's work tools: none that ask a person, change the profile, schedule or start work outside
   // the worker slots, reach other Sessions or edit documents, whenever they were registered.
   expect(restricts.get(sessionId)).toEqual([{ allow: ['read', 'read_image', 'grep', 'bash', 'job_output', 'job_list', 'job_kill', 'web_search', 'skill'] }])
+})
+
+it('gives the main Session the shell its profile registers, so a Windows profile without bash still binds', () => {
+  expect(mainTools(name => name === 'bash')).toEqual(['skill', 'bash', 'read', 'read_image', 'job_output', 'job_list', 'job_kill'])
+  // DSH disables `bash` on Windows: a fixed restriction naming it fails when the main Session binds, before the panel serves.
+  expect(mainTools(name => name === 'pwsh')).toEqual(['skill', 'pwsh', 'read', 'read_image', 'job_output', 'job_list', 'job_kill'])
+  expect(mainTools(name => !['bash', 'pwsh'].includes(name))).toEqual(['skill', 'read', 'read_image', 'job_output', 'job_list', 'job_kill'])
 })
 
 it('gives an explicit ticket\'s worker a prompt without the limits of an inferred Mandate', async () => {
