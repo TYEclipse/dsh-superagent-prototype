@@ -71,6 +71,11 @@ by this fork; use the upstream repository for those.
   checks that relative imports resolve, `src/core` imports only itself and
   `node:` built-ins, Sources never import the application layer, and the panel
   imports only the plain values of `src/app/api.ts` from the host side.
+- `feat(install): add a doctor pre-flight` — `node scripts/doctor.mjs` (also
+  `pnpm doctor`) runs ordered checks: Node.js and DSH engine ranges, the built
+  `lib/` artifacts, the git checkout, a profile's `link:` and `stateDir`,
+  state-dir writability, and a last optional panel probe. It supports `--json`,
+  `--fix` (creates a missing state directory) and exits non-zero on an issue.
 
 ## Install on DSH 0.2.2-rc.1
 

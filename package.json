@@ -49,6 +49,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test && pnpm build",
+    "doctor": "node scripts/doctor.mjs",
     "verify:install": "node scripts/verify-install.mjs"
   },
   "engines": {

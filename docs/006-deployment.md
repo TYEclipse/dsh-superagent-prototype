@@ -140,6 +140,21 @@ Check dsh-superagent: run `scripts/dsh-superagent --profile superagent status` i
 
 `--respect-stop` preserves an intentional stop. Only `stop` writes the marker; `start` clears it. `restart` writes no marker, so the check can recover a restart whose shutdown timed out.
 
+## Doctor
+
+Run the pre-flight checks after an install, before an upgrade, or when the panel misbehaves:
+
+```sh
+node scripts/doctor.mjs --dsh <path to @deepseek-ai/dsh/lib/bin.js> --profile superagent --url http://127.0.0.1:3082
+```
+
+The checks run in order: Node.js against `engines.node`, the DSH CLI against `engines.dsh`, that `lib/index.js`
+and `lib/client.js` were built, where this checkout is, that the named profile links this checkout and names a
+`stateDir`, that the state directory exists and is writable, and — last — that a running panel answers. `--json`
+prints one machine-readable report; `--fix` creates a missing state directory. The exit code is 0 only when every
+check passed. Static checks come before the network probe, so a broken installation reports its local cause before
+its symptom.
+
 ## Settings
 
 Setup must succeed before polling or work starts. Overview lists missing requirements and links to their settings. A settings change runs setup again. If you fix something outside the application, such as CLI authentication, choose **Check again**.

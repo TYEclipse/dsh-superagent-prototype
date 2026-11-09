@@ -419,6 +419,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/effects.spec.ts` | The effect queue: coalescing, limits, retries with backoff, health and shutdown |
 | `tests/failure.spec.ts` | Executor failure classification: retryable network/rate-limit/overload/server failures, terminal auth/budget/context failures, and `retry-after` hints |
 | `tests/architecture.spec.ts` | Architecture fitness functions: relative imports resolve, the core stays free of outside imports, Sources do not import the application, and the panel imports only `src/app/api.ts` values |
+| `tests/doctor.spec.ts` | The doctor script: ordered checks against a throwaway repository and a fake dsh, engine-range failures, an unbuilt bundle, and `--fix` creating a missing state directory |
 | `tests/memory.spec.ts` | Project memory: recording a finished Ticket once, bounding notes, the character budget of the rendered section, and the worker-only Project memory prompt section |
 | `tests/passes.spec.ts` | Passes: one at a time, the ones asked for during a pass run as one after it, and the runtime health a failed pass reports |
 | `tests/outbox.spec.ts` | The Outbox on a running Runtime: messages wait while processing is paused or their Source is not installed |
