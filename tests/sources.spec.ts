@@ -1054,7 +1054,7 @@ describe.skipIf(process.platform === 'win32')('feishu event consumer', () => {
     leak) echo '[event] ready' >&2; echo 'WARN Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature' >&2; exec sleep 60 ;;
     ready) echo '[event] ready' >&2; exec sleep 60 ;;
     flaky) echo '[event] ready' >&2; [ "$n" -gt 1 ] && exec sleep 60; exit 1 ;;
-    events) echo '[event] ready' >&2; cat '${dir}/events'; touch '${dir}/printed'; exec sleep 60 ;;
+    events) echo '[event] ready' >&2; while [ ! -f '${dir}/go' ]; do sleep 0.05; done; cat '${dir}/events'; touch '${dir}/printed'; exec sleep 60 ;;
     late) echo '[event] ready' >&2; sleep 1; cat '${dir}/events'; touch '${dir}/printed'; exec sleep 60 ;;
   esac
   `, { mode: 0o755 })
@@ -1092,6 +1092,11 @@ describe.skipIf(process.platform === 'win32')('feishu event consumer', () => {
       event('om_3', 'oc_group', 'group')].join('\n') + '\n')
     const { ctx, health, store } = consumerSource(cli('events'))
     running = runFeishu(ctx, controller.signal)
+    // The fake CLI prints its ready line on stderr and the events on stdout, and the Source reads them through
+    // separate pipes. Let the ready report be recorded before the events start, or a late ready report would
+    // overwrite the malformed-line error the test asserts.
+    await vi.waitFor(() => expect(health.feishu).toMatchObject({ state: 'ready' }), until)
+    writeFileSync(join(dir, 'go'), '')
     await vi.waitFor(() => expect(store.triggers.get(feishuTriggerId('om_3'))).toBeDefined(), until)
     expect(['om_1', 'om_2'].map(id => store.triggers.get(feishuTriggerId(id))?.meta.direct)).toEqual([false, true])
     expect(store.get(KV.feishu.chats)).toEqual({ oc_group: false, oc_dm: true })
