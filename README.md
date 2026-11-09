@@ -32,6 +32,7 @@ Read the numbered documents in order; each builds only on the ones before it.
 - [007 Architecture](docs/007-architecture.md)
 - [008 Cookbook](docs/008-cookbook.md): adding a Source
 - [009 Communication prompt, Chinese](docs/009-communication-prompt-zh.md): a Chinese rewrite of the Communication section, with the evidence and trade-offs behind it
+- [010 Ticket scope prompt, Chinese](docs/010-scope-prompt-zh.md): the researched Chinese rewrite that is now the default Ticket scope, with the evidence and trade-offs behind it
 
 ## Development
 
