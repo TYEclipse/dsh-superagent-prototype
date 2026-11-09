@@ -256,6 +256,7 @@ Each model request binds the Session to the current prompt revision. The revisio
 
 - **Explicit, narrow dependencies.** Each class receives an interface that names what it uses, mostly as `Pick` types of other classes: `ExecutorHost`, `AssessorHost`, `SessionsHost`, `SettingsHost`, `SetupHost`, `PassesHost` and `OutboxHost` for the core classes, and `HttpHost`, `MainToolsHost`, `ExecutorToolsHost`, `ResourceHost`, `LinkHost` and `SourceContextDeps` for the glue, with the Engine as the `Pick` of the role that calls it. The Runtime passes itself only behind such an interface. A Source plugin injects the `orchestrator` service, which its type names as a `SourceHost`: the registry and `context(kind)`; its kind's code sees only its `SourceContext`.
 - **What may import what.** `src/core` imports nothing outside itself apart from Node's hashing, and does no I/O. `src/sources` imports nothing from `src/app`. The panel imports only types from the host side, and the plain values of `src/admission.ts`, `src/limits.ts`, `src/setup.ts`, `src/navigation.ts`, `src/sources/host.ts`, `src/core/errors.ts`, `src/core/reasons.ts` and the filter lists of `src/app/api.ts`.
+- **Subprocess output.** Text a subprocess printed crosses into domain state, a Report, a continuation message, a health detail or the management API body only through `redactSecrets` (`src/infra/redact.ts`); `commandError`, `runAsWorker` and `PrepareFailed` pass it through the redactor.
 - **One writer per state.** Each kind of state has one writer, and the others read it or ask that writer.
 
   | State | Writer |
@@ -356,6 +357,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/executor/failure.ts` | `classifyFailure`: an Executor failure's kind, whether a retry can pass it, and its provider `retry-after` hint |
 | `src/executor/background.ts` | A worker's background work in DeepSeek Harness, the shell jobs its Session owns (`ctx.jobs`) and its subagents (`ctx.subagents`): `runningJobs`, `untilQuiet`, `killJobs`, `collectJobs`, `stopSubagents`, `stopBackground`, `until`, and `cancelled`, the workers whose turn a stop of their subagents cancelled |
 | `src/infra/commands.ts` | `Commands`, the CLI transport: `run`; `api` and `pages`, limited to the configured repository and validated; `lark` as the bot; `git`. `CliError` carries the code a command's output reports, such as a GitHub HTTP status, and a command that prints nothing fails with how it ended, never with its arguments; `validItems` skips and counts the malformed items of a list |
+| `src/infra/redact.ts` | `redactSecrets`: masks GitHub, bearer, API-key and cookie credentials, URL and query credentials, AWS keys and private-key blocks in subprocess output, keeping a short visible hint; pure and idempotent |
 | `src/infra/environment.ts` | The agent's process environment: command shims, the git configuration and credential helper, `runAsWorker`, and the checks of the environment and of a Ticket's directory |
 | `src/infra/paths.ts` | The package's root, where packaged files are |
 | `src/infra/text.ts` | Word counts and the chat message limit, `fill` and `sameName` |
@@ -411,6 +413,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/registry.spec.ts` | `SourceRegistry`: instances, validation, Policy parts, Channels and Thread context |
 | `tests/sources.spec.ts` | The Feishu and GitHub Sources on a `SourceContext`: translation, polls and read positions, the pull request rules, health |
 | `tests/commands.spec.ts` | CLI calls as the deployment's accounts, the Channels' answers, and repository-scoped GitHub calls |
+| `tests/redact.spec.ts` | Credential redaction: every form it masks, idempotence, and the ordinary prose it leaves alone |
 | `tests/feishu-read.spec.ts`, `tests/github-read.spec.ts` | Feishu and GitHub reads |
 | `tests/admission-context.spec.ts`, `tests/feishu-image.spec.ts` | The Thread window of assessments, and Feishu image reads |
 | `tests/assessment.spec.ts` | What the MasterAssessor keeps per Eval, and when it lets go |
@@ -419,7 +422,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/effects.spec.ts` | The effect queue: coalescing, limits, retries with backoff, health and shutdown |
 | `tests/failure.spec.ts` | Executor failure classification: retryable network/rate-limit/overload/server failures, terminal auth/budget/context failures, and `retry-after` hints |
 | `tests/architecture.spec.ts` | Architecture fitness functions: relative imports resolve, the core stays free of outside imports, Sources do not import the application, and the panel imports only `src/app/api.ts` values |
-| `tests/doctor.spec.ts` | The doctor script: ordered checks against a throwaway repository and a fake dsh, engine-range failures, an unbuilt bundle, and `--fix` creating a missing state directory |
+| `tests/doctor.spec.ts` | The doctor script: ordered checks against a throwaway repository and a fake dsh, engine-range failures, an unbuilt bundle, a stale build, a mismatched install receipt, and `--fix` creating a missing state directory |
 | `tests/memory.spec.ts` | Project memory: recording a finished Ticket once, bounding notes, the character budget of the rendered section, and the worker-only Project memory prompt section |
 | `tests/passes.spec.ts` | Passes: one at a time, the ones asked for during a pass run as one after it, and the runtime health a failed pass reports |
 | `tests/outbox.spec.ts` | The Outbox on a running Runtime: messages wait while processing is paused or their Source is not installed |

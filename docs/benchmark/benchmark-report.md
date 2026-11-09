@@ -14,6 +14,12 @@
   `pnpm check` and by a real `link:` install into a throwaway DSH profile that booted its panel
   ([install-verification.md](install-verification.md)).
 
+The benchmark is a point-in-time comparison. The continuing work is the
+[gap discovery and fix loop](evolution-loop.md), whose live queue is
+[gap-backlog.md](gap-backlog.md): a dedicated finder proposes evidence-backed gaps, a separate
+batch fixes them, an independent verifier reproduces the acceptance, and a host automation drives
+the next round.
+
 The two projects are not the same product: hermes-agent is a large Python agent platform (roughly 24k files:
 CLI/TUI, desktop, gateway, 20+ chat adapters, providers, sandboxed terminals), while dsh-superagent is a small
 TypeScript bundle that adds proactive, ticket-based work for one repository to a DeepSeek Harness profile. The
