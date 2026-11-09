@@ -12,9 +12,9 @@
  * Exit code: 0 when every check passed, 1 otherwise.
  */
 import { execFileSync } from 'node:child_process'
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const options = parse(process.argv.slice(2))
@@ -103,15 +103,63 @@ if (options.dsh) {
 const built = ['lib/index.js', 'lib/client.js'].filter(file => existsSync(join(options.repo, file)))
 check('bundle', built.length === 2, built.length === 2 ? 'lib/index.js and lib/client.js' : `missing ${['lib/index.js', 'lib/client.js'].filter(file => !built.includes(file)).join(', ')}; run pnpm build`)
 
-// 4. Where this checkout is (informational; a tarball checkout has no git).
+// 4. The build is not older than the source it was built from. A tarball install ships artefacts and no source
+// tree, so a checkout without src/ skips this check; the bundle check above already reports a missing build.
+const filesUnder = directory => {
+  const found = []
+  try {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) found.push(...filesUnder(path))
+      else if (entry.isFile()) found.push(path)
+    }
+  } catch { /* An unreadable source tree is a skip, not a failure. */ }
+  return found
+}
+const collect = name => {
+  const path = join(options.repo, name)
+  try { return statSync(path).isDirectory() ? filesUnder(path) : [path] } catch { return [] }
+}
+const withTime = path => { try { return { path, time: statSync(path).mtimeMs } } catch { return undefined } }
+const newestOf = items => items.reduce((newest, item) => !newest || item.time > newest.time ? item : newest, undefined)
+const oldestOf = items => items.reduce((oldest, item) => !oldest || item.time < oldest.time ? item : oldest, undefined)
+const relativePath = path => relative(options.repo, path).split(sep).join('/')
+const isoTime = time => new Date(time).toISOString()
+const hasSourceTree = existsSync(join(options.repo, 'src'))
+const sources = hasSourceTree
+  ? ['src', 'prompts', 'skills', 'tsdown.config.ts', 'cordis.patch.yml'].flatMap(collect).map(withTime).filter(Boolean)
+  : []
+const artefacts = ['lib/index.js', 'lib/client.js', 'lib/github-watch.js', 'lib/feishu-watch.js'].flatMap(collect).map(withTime).filter(Boolean)
+const newestSource = newestOf(sources)
+const oldestArtefact = oldestOf(artefacts)
+if (!hasSourceTree) ok('build', 'skipped: no src/ (a tarball install ships only lib/)')
+else if (!newestSource) ok('build', 'skipped: src/ holds no source files to compare')
+else if (!oldestArtefact) ok('build', 'skipped: no lib/ artefact to compare; the bundle check reports a missing build')
+else check('build', newestSource.time <= oldestArtefact.time, newestSource.time > oldestArtefact.time
+  ? `${relativePath(newestSource.path)} (${isoTime(newestSource.time)}) is newer than ${relativePath(oldestArtefact.path)} (${isoTime(oldestArtefact.time)}); run pnpm build`
+  : `newest source ${relativePath(newestSource.path)} is not newer than oldest artefact ${relativePath(oldestArtefact.path)}`)
+
+// 5. Where this checkout is (informational; a tarball checkout has no git).
+let head
 try {
   const commit = run('git', ['rev-parse', '--short', 'HEAD'])
+  head = run('git', ['rev-parse', 'HEAD'])
   const branch = run('git', ['rev-parse', '--abbrev-ref', 'HEAD'])
   const dirty = run('git', ['status', '--porcelain']) !== ''
   ok('git', `${branch} @ ${commit}${dirty ? ' (modified)' : ''}`)
 } catch { ok('git', 'not a git checkout') }
 
-// 5. The DSH profile, when one is named: it exists, links this checkout, and has machine configuration.
+// 6. The install-verification receipt is evidence, not authority: a commit mismatch warns and never fails.
+const receipt = join(options.repo, '.artifacts', 'install-verification.json')
+if (head && existsSync(receipt)) {
+  try {
+    const recorded = JSON.parse(read(receipt)).commit
+    if (typeof recorded === 'string' && recorded !== head)
+      ok('receipt', `warning: ${relativePath(receipt)} records commit ${recorded} but HEAD is ${head}; rerun pnpm verify:install`)
+  } catch { /* An unreadable receipt is not authority either. */ }
+}
+
+// 7. The DSH profile, when one is named: it exists, links this checkout, and has machine configuration.
 let stateDir
 if (options.profile) {
   const home = process.env.DSH_HOME || join(homedir(), '.dsh')
@@ -135,7 +183,7 @@ if (options.profile) {
   }
 } else warn('profile')
 
-// 6. The state directory exists and is writable; --fix creates it.
+// 8. The state directory exists and is writable; --fix creates it.
 if (stateDir) {
   const dir = resolve(stateDir.replace(/^~(?=$|[\\/])/, homedir()))
   let exists = existsSync(dir)
@@ -145,7 +193,7 @@ if (stateDir) {
   check('state', exists && writable, !exists ? `${dir} does not exist${options.fix ? ' and could not be created' : '; run with --fix'}` : `${dir} is writable`)
 } else warn('state')
 
-// 7. A running panel, last, when a URL is given.
+// 9. A running panel, last, when a URL is given.
 if (options.url) {
   const url = `${options.url.replace(/\/$/, '')}/orchestrator/api/state`
   try {
