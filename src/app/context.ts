@@ -23,7 +23,8 @@ export const mainAdmissionPolicy = promptFile('admission')
 const handoff = { shared: promptFile('handoff'), orchestrator: promptFile('handoff-orchestrator'), worker: promptFile('handoff-worker') }
 export const handoffPolicy = (role: 'orchestrator' | 'worker'): string => `${handoff.shared}\n${handoff[role]}`
 
-export const autoMergeThreshold = (lines: number): string => `it changes fewer than ${lines} lines (additions plus deletions);`
+/** The size sentence carried from a legacy explicit auto-merge limit; the current default has no line cap. */
+export const autoMergeThreshold = (lines: number): string => `自动合并只用于改动少于 ${lines} 行（新增加删除）的 PR。`
 
 /** Retains message content while omitting streamed chunks, usage accounting, and reasoning blocks. */
 export function transcriptEntry(event: SessionEvent) {

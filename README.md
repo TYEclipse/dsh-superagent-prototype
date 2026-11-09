@@ -33,6 +33,7 @@ Read the numbered documents in order; each builds only on the ones before it.
 - [008 Cookbook](docs/008-cookbook.md): adding a Source
 - [009 Communication prompt, Chinese](docs/009-communication-prompt-zh.md): a Chinese rewrite of the Communication section, with the evidence and trade-offs behind it
 - [010 Ticket scope prompt, Chinese](docs/010-scope-prompt-zh.md): the researched Chinese rewrite that is now the default Ticket scope, with the evidence and trade-offs behind it
+- [011 Delivery requirements prompt, Chinese](docs/011-delivery-prompt-zh.md): the researched Chinese rewrite that is now the default Delivery requirements, with the evidence and trade-offs behind it
 
 ## Development
 

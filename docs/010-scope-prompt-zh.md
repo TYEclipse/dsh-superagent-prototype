@@ -109,7 +109,7 @@ The Ticket scope section is the team's own text: when a Ticket goes on, and when
 | 人停的持久性 | 工单与订阅的存储和恢复 | 保留「跨跟帖、跨 worker、跨重启」与「记下来源」 |
 | CI 与机器人不能唤醒 | 003 的失败与恢复一节 | 保留一句，不写实现 |
 | 每个机器人三轮 | Communication 段 | 从本段删除，避免两处规则互相引用 |
-| 自动合并与 200 行阈值 | Delivery requirements | 本段不谈 |
+| 自动合并、提交署名与重复 PR | Delivery requirements | 本段不谈 |
 | 验证手段（测试、构建、截图） | 执行环境与仓库工具 | 只要求「无法验证就停」，不规定具体命令 |
 
 ## 7. 取舍记录
