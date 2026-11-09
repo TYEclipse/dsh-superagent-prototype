@@ -245,8 +245,8 @@ it('writes a prompt version saved before the team sections in them, keeping its 
   const prompts = new Prompts(store, () => 100000, () => undefined, () => true)
   const { config } = prompts.version(3)
   expect(config.communication).toBe(defaultPrompts().communication)
-  expect(config.delivery).toContain('it changes fewer than 350 lines (additions plus deletions);')
-  expect(config.delivery).not.toContain('fewer than 200 lines')
+  expect(config.delivery).toContain('自动合并只用于改动少于 350 行（新增加删除）的 PR。')
+  expect(config.delivery).not.toContain('少于 200 行')
   // Guides that are now fixed or built-in are gone; the team's own skills stay, in current names.
   expect(Object.keys(config.skills)).toEqual(['identities', 'notes'])
   expect(config.skills.notes).toBe('Call orchestrator_route (kind accept) with trigger_id, read trigger/<id>, follow the work section and skill dsh-superagent-release, load dsh-superagent-github, cd "$DSH_SUPERAGENT_DIR".')
@@ -278,7 +278,7 @@ it('writes the removed auto-merge threshold and member identities into the promp
   const prompts = new Prompts(store, () => 100000, () => undefined, () => true)
   const migrated = prompts.current()
   expect(migrated).toMatchObject({ revision: 1, previousRevision: 0, source: 'settings-migration' })
-  expect(migrated.config.delivery).toContain('it changes fewer than 350 lines (additions plus deletions);')
+  expect(migrated.config.delivery).toContain('自动合并只用于改动少于 350 行（新增加删除）的 PR。')
   expect(migrated.config.skills.identities).toContain('- Alice (Feishu ou_alice) is @alice on GitHub')
   expect(migrated.config.skills.identities).not.toContain('Bob')
   expect(store.get('settings-before-9')).toBeUndefined()
@@ -290,7 +290,7 @@ it('writes the removed auto-merge threshold and member identities into the promp
   const own = opened({ 'settings-before-9': { policy: { autoMergeLineLimit: 80 } }, 'prompt-revision': 1,
     'prompt-version:1': { revision: 1, previousRevision: 0, savedAt: '', source: 'panel', config: { ...defaultPrompts(), delivery: 'Deliver PRs.' } } })
   expect(new Prompts(own, () => 100000, () => undefined, () => true).current().config.delivery)
-    .toBe('Deliver PRs.\nEnable auto-merge only on a PR that changes fewer than 80 lines (additions plus deletions).')
+    .toBe('Deliver PRs.\n自动合并只用于改动少于 80 行（新增加删除）的 PR。')
   own.close()
   const done = opened({ 'settings-before-9': before, 'prompt-settings-text': 1 })
   expect(new Prompts(done, () => 100000, () => undefined, () => true).current().revision).toBe(0)

@@ -72,7 +72,7 @@ it('reads a prompt file whatever its line ends and blank lines, and names a miss
 
 it('leaves the UI before-and-after evidence to the delivery requirements, which a team can change', () => {
   const config = { ...defaultPrompts(), delivery: 'Only capture the finished screen.' }
-  for (const role of ['orchestrator', 'worker'] as const) expect(composePrompt(config, role)).not.toContain('Before and After visual evidence')
+  for (const role of ['orchestrator', 'worker'] as const) expect(composePrompt(config, role)).not.toContain('修改前与修改后的真实截图或录屏')
 })
 
 it.each(['orchestrator', 'worker'] as const)('ends the %s prompt with the fixed handoff rules and the execution environment, and the main Session\'s with its Policy', role => {

@@ -1065,15 +1065,15 @@ it('passes team text with template braces to every Session literally, without re
   }
 })
 
-it('leaves auto-merge to the delivery requirements, with the agent\'s own gh and the line threshold', async () => {
+it('leaves auto-merge to the delivery requirements, with the agent\'s own gh and no approval or line cap', async () => {
   const { ticket } = await acceptedTicket()
   expect(runtime.ticketEnvironment(ticket).map(variable => variable.key)).not.toContain('DSH_SUPERAGENT_GITHUB_MERGE_ACCOUNT')
   expect(ticket.mandate).not.toHaveProperty('autoMergeLineLimit')
   const delivery = runtime.prompts.current().config.delivery
-  expect(delivery).toContain('it changes fewer than 200 lines (additions plus deletions);')
-  // Auto-merge is never enabled as the agent account; only a merge CLI the section names enables it.
-  expect(delivery).toContain('Never enable auto-merge as the agent account')
-  expect(delivery).toContain('<merge CLI> pr merge <number> --auto --merge --match-head-commit <sha>')
+  // This deployment chooses no human approval and no size cap; the prompt still binds auto-merge to checks and the head commit.
+  expect(delivery).toContain('本部署不要求人工批准，也没有行数上限。')
+  expect(delivery).toContain('gh pr merge <number> --auto --merge --match-head-commit <sha> --repo $DSH_SUPERAGENT_GITHUB_REPOSITORY')
+  expect(delivery).toContain('仓库或任务要求的检查全部通过')
   expect(runtime.prompts.preview(runtime.prompts.current().config).worker).not.toContain('gh-merge')
 })
 
@@ -1135,10 +1135,10 @@ it('runs a GitHub-only deployment: the GitHub part of the Policy decides alone, 
 it('credits each human reviewer once in the default delivery requirements on every commit of the PR, never with an empty commit', async () => {
   const delivery = runtime.prompts.current().config.delivery
   expect(delivery).toContain('Co-authored-by: <name or login> <id+login@users.noreply.github.com>')
-  expect(delivery).toContain('on every commit of the PR branch')
+  expect(delivery).toContain('PR 分支的每个提交')
   expect(delivery).toContain('git filter-branch -f --msg-filter')
-  expect(delivery).toContain('Never push an empty commit to credit a reviewer.')
-  expect(delivery).toContain('Do not credit bots')
+  expect(delivery).toContain('不要用空提交记名')
+  expect(delivery).toContain('不记 bot')
 })
 
 it('shows a failed reply as a problem with its attempts, an error of the reply effects after three, until it is withdrawn', async () => {

@@ -85,7 +85,7 @@ Auto-merge is governed by the **Delivery requirements** prompt. The host has no 
 
 By default, the Executor never enables auto-merge as the agent account: GitHub attributes the merge to whoever enabled it. Delivery requirements must name another account's CLI for merging. Without one, people merge the pull request.
 
-The default instructions allow auto-merge only for a pull request opened for the Ticket, when it is ready, the required approvals cover the head commit, and additions plus deletions total fewer than 200 lines. Before pushing another revision, the Executor withdraws auto-merge.
+The default Delivery requirements allow auto-merge without a human approval and without a line cap, for a PR opened for the Ticket from its branch, once it is ready and the required checks and any required reviews cover the head commit. Before pushing another revision, the Executor withdraws auto-merge. This is a deliberate deployment choice, not an accident: teams that want approval or size gates add them to the section, or enforce them in branch protection.
 
 Reviews without a body, such as approvals, also arrive as Triggers and can wake an Executor waiting for review. These instructions govern the agent, not GitHub's merge rules. To enforce approvals, require them in branch protection and dismiss stale approvals. Omit the merge CLI or remove the auto-merge paragraph to require manual merging.
 
