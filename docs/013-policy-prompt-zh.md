@@ -12,7 +12,7 @@ The acceptance rules are the part of the Policy that lets the agent take proacti
 - **规则即策略**：每条规则独立判断，写明可接什么、应忽略什么；规则没有先后优先级，多条命中只接一单，冲突或范围不明确时不接。默认规则也改成中文，并把「可接 / 应忽略」写成可判定的条件。
 - **证据约束**：每个决定都给 direction 与引语；每条启用规则恰好一项 `rule_assessments`；不编造证据，`unavailable` 与 `ignore` 分开记录。
 - **规则正文透传**：规则可以写明审阅人、流程或静默接单；命中后宿主把规则正文随工单交给执行器，主 Session 不改写、不另选审阅人。
-- **默认替换**：`prompts/admission.md`、`src/app/prompts.ts` 的三个模板和 `src/policy.ts` 的两条默认规则现在就是这段中文；评审后把三个段落与规则保存到本部署（提示词 revision 7，策略块随规则文本更新）。
+- **默认替换**：`prompts/admission.md`、`src/app/prompts.ts` 的三个模板和 `src/policy.ts` 的两条默认规则现在就是这段中文；本部署已把三个段落与规则保存为提示词 revision 7、策略块 revision 6。
 
 体量：`runtime/admission` 从 v6 的 3,148 字符 / 134 行降到 2,232 字符 / 30 行；去掉的是重复、逐行直译和埋在段尾的机制说明，不是判据。
 
@@ -161,6 +161,7 @@ v6（[012](012-built-in-prompts-zh.md)）把 `runtime/admission` 逐行译成中
 部署：
 
 - 用 `PUT /orchestrator/api/prompts` 以当前 revision 为 base 保存三个段落的 overrides；`GET /orchestrator/api/prompts` 确认新 revision。
+- 实际保存：提示词 revision 7（三个段落 override），策略块 revision 6；`POST /orchestrator/api/prompts/preview` 显示 admission 在 Policy 之前、Policy 在最后、两条规则为中文；CI 的 `check` job 通过。
 - 用 `POST /orchestrator/api/prompts/preview` 检查：admission 与 Policy 为中文；`{version}`、`{mode}`、`{rules}` 都在；工具名、命令与 `## Policy` 仍是英文；Policy 仍在最后。
 - 用 `PUT /orchestrator/api/settings/policy` 保存中文默认规则；确认策略版本变化、进行中的明确请求工单不被通知，规则历史可见。
 - 回滚：恢复上一个提示词 revision 与上一个策略块 revision；或删除 overrides 让内置文本接管。
@@ -175,5 +176,5 @@ v6（[012](012-built-in-prompts-zh.md)）把 `runtime/admission` 逐行译成中
 
 1. 默认已替换：`prompts/admission.md`、`src/app/prompts.ts` 与 `src/policy.ts` 就是第 5 节；重新构建并重载插件后，新部署直接使用。
 2. 已有部署：面板会保留已保存的提示词文本与规则。打开「提示词 → 主 Session 接单约束 / 策略与启用的规则 / 策略（没有启用的规则时）」，点「恢复此段默认内容」采用新默认，或粘贴第 5 节；保存即生效，每次模型请求读取最新版本，不需要重启。
-3. 本次部署：评审后把第 5.1–5.2 节保存为提示词 revision 7，把第 5.3 节保存为策略块的规则；面板版本历史可对照与回滚。
+3. 本次部署：第 5.1–5.2 节已保存为提示词 revision 7，第 5.3 节已保存为策略块 revision 6；面板版本历史可对照与回滚。
 4. 团队仍可改：规则是团队策略，不是代码；升级不会覆盖已保存的规则或提示词。规则正文可以继续添加审阅人、流程或静默接单，命中后执行器会收到原文。
