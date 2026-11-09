@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join, delimiter } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Config, executable, machineOf, resolveDeployment, resolveFeishuBot, type Machine, type Probe } from '../src/deployment.ts'
+import { Config, executable, machineOf, resolveDeployment, resolveFeishuBot, workerProbe, type Machine, type Probe } from '../src/deployment.ts'
+import type { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import { gitEnv } from './fixtures/git.ts'
 
 const exec = promisify(execFile)
@@ -59,6 +60,43 @@ describe('configuration schema', () => {
 })
 
 describe('setup', () => {
+  it('passes PATH through the subprocess environment and never starts an env wrapper', async () => {
+    const spawned: { argv: string[]; env?: Record<string, string> }[] = []
+    const subprocess = { spawn: vi.fn((spec: { argv: string[]; env?: Record<string, string> }) => {
+      spawned.push(spec)
+      return { done: Promise.resolve({ exitCode: 0 }), collected: {
+        stdout: { readFrom: () => ({ text: 'ok' }) }, stderr: { readFrom: () => ({ text: '' }) } } }
+    }) } as unknown as SubprocessRuntime
+    const original = process.env.PATH
+    process.env.PATH = path
+    try {
+      const probe = workerProbe(subprocess, join(dir, 'state'), dir, new AbortController().signal)
+      expect(await probe(['gh', 'api', 'user'])).toBe('ok')
+    } finally { process.env.PATH = original }
+    expect(spawned[0]!.argv).toEqual(['gh', 'api', 'user'])
+    expect(spawned[0]!.argv).not.toContain('env')
+    expect(spawned[0]!.env?.PATH).toContain(join(dir, 'bin'))
+    // The worker shims are removed from the probe's PATH so a shim can never answer a setup check.
+    expect(spawned[0]!.env?.PATH).not.toContain('worker-bin')
+  })
+  it('calls lark-cli directly with its mode variables instead of wrapping it in env', async () => {
+    const calls: { argv: string[]; env?: Record<string, string> }[] = []
+    const stub: Probe = async (argv, env) => {
+      calls.push({ argv, env })
+      const args = argv.slice(1).join(' ')
+      if (args === 'auth status') return JSON.stringify({ appId: 'cli_bot', brand: 'feishu', identities: { bot: { status: 'ready' } } })
+      if (args === 'config strict-mode') return 'strict-mode: bot (source: profile)'
+      if (args === 'api GET /open-apis/bot/v3/info --as bot --format ndjson') return JSON.stringify({ bot: { open_id: 'ou_bot', app_name: 'Widgets Bot' } })
+      throw new Error(`unexpected probe: ${args}`)
+    }
+    expect(await resolveFeishuBot(machine(), { cli: 'lark-cli' }, stub, path)).toMatchObject({ botId: 'ou_bot', name: 'Widgets Bot' })
+    expect(calls).toHaveLength(3)
+    for (const call of calls) {
+      expect(call.argv[0]).toBe(join(dir, 'bin', 'lark-cli'))
+      expect(call.argv).not.toContain('env')
+      expect(call.env).toMatchObject({ LARKSUITE_CLI_NO_UPDATE_NOTIFIER: '1', LARKSUITE_CLI_NO_SKILLS_NOTIFIER: '1' })
+    }
+  })
   // These two execute the stand-in CLIs, which are `#!/bin/sh` scripts; the real Windows deployment uses .exe wrappers.
   it.skipIf(process.platform === 'win32')('reads the repository from the GitHub Source and the accounts from their CLIs, skipping the worker shims', async () => {
     const deployment = await resolveDeployment(machine(), { repository: 'acme/widgets', cli: 'gh' }, probe, path)
