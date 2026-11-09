@@ -79,6 +79,14 @@ by this fork; use the upstream repository for those.
 - `feat(memory): archive notes older than the prompt window` — `Memory.curate`
   runs at startup and moves notes older than 90 days from the worker prompt's
   notes into an archive that no prompt reads; running it again changes nothing.
+- `test(coverage): gate the suite with v8 coverage` — `@vitest/coverage-v8` is
+  pinned to the Vitest version, and `pnpm test:coverage` writes `coverage/`
+  (text, JSON summary and HTML). `pnpm check` now runs the suite under that gate
+  and fails when statements, branches, functions or lines drop below the
+  thresholds in `vitest.config.ts`; the baseline at introduction was
+  93.07/85.63/93.09/96.19% on native Windows with the 42 POSIX-only tests
+  skipped. A GitHub Actions workflow runs `pnpm check` on every pull request
+  and push to `main`.
 
 ## Install on DSH 0.2.2-rc.1
 
