@@ -149,11 +149,18 @@ node scripts/doctor.mjs --dsh <path to @deepseek-ai/dsh/lib/bin.js> --profile su
 ```
 
 The checks run in order: Node.js against `engines.node`, the DSH CLI against `engines.dsh`, that `lib/index.js`
-and `lib/client.js` were built, where this checkout is, that the named profile links this checkout and names a
-`stateDir`, that the state directory exists and is writable, and — last — that a running panel answers. `--json`
-prints one machine-readable report; `--fix` creates a missing state directory. The exit code is 0 only when every
-check passed. Static checks come before the network probe, so a broken installation reports its local cause before
-its symptom.
+and `lib/client.js` were built, that the build is not older than its source, where this checkout is, that the named
+profile links this checkout and names a `stateDir`, that the state directory exists and is writable, and — last —
+that a running panel answers. `--json` prints one machine-readable report; `--fix` creates a missing state
+directory. The exit code is 0 only when every check passed. Static checks come before the network probe, so a broken
+installation reports its local cause before its symptom.
+
+The build check compares the newest file under `src/`, `prompts/` and `skills/`, together with `tsdown.config.ts` and
+`cordis.patch.yml`, against the oldest of `lib/index.js`, `lib/client.js`, `lib/github-watch.js` and
+`lib/feishu-watch.js`. When the source is newer it fails, naming both times; run `pnpm build` after editing source or
+pulling a new commit. A tarball install ships no `src/`, so it skips this check rather than failing. When
+`.artifacts/install-verification.json` names a different commit than `git rev-parse HEAD`, the report adds a warning
+naming both; the receipt is evidence of a past verification, so a mismatch never fails the run.
 
 ## Settings
 

@@ -131,6 +131,30 @@ const subprocess = (config: string): SubprocessRuntime => ({
     return { done, collected: { stdout: reader('stdout'), stderr: reader('stderr') } }
   },
 }) as unknown as SubprocessRuntime
+/** A SubprocessRuntime that exits with `exitCode` and fixed collected output, without starting a process. */
+const finished = (stderr: string, exitCode = 1): SubprocessRuntime => ({
+  spawn: () => ({
+    done: Promise.resolve({ exitCode, signal: null }),
+    collected: {
+      stdout: { readFrom: () => ({ text: '', nextOffset: 0, lossy: false }) },
+      stderr: { readFrom: () => ({ text: stderr, nextOffset: 0, lossy: false }) },
+    },
+  }),
+}) as unknown as SubprocessRuntime
+it('redacts a credential a worker command prints to stderr before it becomes the error', async () => {
+  const token = 'ghp_1234567890abcdefghijklmnopqrstuvwxyz'
+  const error = await runAsWorker(finished(`fatal: authentication failed for token ${token}`), ['sh', '-c', 'fails'], dir,
+    new AbortController().signal).catch((reason: unknown) => reason)
+  expect(error).toBeInstanceOf(CliError)
+  expect(error).toMatchObject({ message: 'fatal: authentication failed for token ghp_1…wxyz', exitCode: 1 })
+  expect((error as Error).message).not.toContain(token)
+})
+it('redacts a credential in the fallback message of a worker command that printed nothing', async () => {
+  const error = await runAsWorker(finished(''), ['lark-cli', 'im', '+messages-send', '--token=ghp_1234567890abcdefghij'], dir,
+    new AbortController().signal).catch((reason: unknown) => reason)
+  expect(error).toBeInstanceOf(CliError)
+  expect((error as Error).message).toBe('lark-cli im +messages-send --token=ghp_1…ghij exited with 1')
+})
 describe.skipIf(process.platform === 'win32')('ticket directory check', () => {
   const signal = new AbortController().signal
   const env = () => gitEnv({ GIT_CONFIG_GLOBAL: join(dir, 'global'), GIT_CONFIG_NOSYSTEM: '1' })

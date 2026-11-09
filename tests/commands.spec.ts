@@ -67,6 +67,19 @@ it('reports Feishu failures with their code and without command arguments', () =
   expect(membership).toMatchObject({ message: 'operator is not in the chat (232011)', code: 232011 })
   expect(commandError({stderr:JSON.stringify({error:{code:999,message:'scope missing'}})}).message).toBe('scope missing (999)')
 })
+it('masks a credential a spawned command prints to stderr before it becomes the error message', async () => {
+  const commands = new Commands(() => deployment, {}, new AbortController().signal)
+  const token = 'ghp_1234567890abcdefghijklmnopqrstuvwxyz'
+  const script = `process.stderr.write('fatal: authentication failed for ${token}\\n'); process.exitCode = 3`
+  const failure = await commands.run(process.execPath, ['-e', script]).catch((error: unknown) => error)
+  expect(failure).toBeInstanceOf(CliError)
+  expect(failure).toMatchObject({ message: 'fatal: authentication failed for ghp_1…wxyz', exitCode: 3 })
+  expect((failure as Error).message).not.toContain(token)
+})
+it('masks a credential in the JSON error a CLI reports', () => {
+  const failure = commandError({ stderr: JSON.stringify({ error: { code: 999, message: 'upstream rejected x-api-key: sk_live_1234567890abcdef' } }), code: 1 })
+  expect(failure).toMatchObject({ message: 'upstream rejected x-api-key: sk_l…cdef (999)', code: 999, exitCode: 1 })
+})
 describe('Channels', () => {
   const commands = () => new Commands(() => deployment, {}, new AbortController().signal)
   const feishu = { ...reply, channel: feishuChannel('oc_1', 'om_1') }
@@ -181,6 +194,11 @@ it('says where to grant the missing permission when Feishu answers 230027, and k
   await expect(commands.lark(['api', 'GET', '/open-apis/im/v1/messages'])).rejects.toMatchObject({ message: hint, code: 230027, exitCode: 1 })
   run.mockResolvedValueOnce(JSON.stringify({ ok: false, error: { code: 230027, message: 'access denied for this bot operation' } }))
   await expect(commands.lark(['api', 'GET', '/open-apis/im/v1/messages'])).rejects.toMatchObject({ message: hint, code: 230027 })
+})
+it('masks a credential in the Feishu error message a command reports', async () => {
+  const commands = new Commands(() => deployment, {}, new AbortController().signal)
+  vi.spyOn(commands, 'run').mockResolvedValue(JSON.stringify({ ok: false, error: { code: 999, message: 'upload failed for ghp_1234567890abcdefghij' } }))
+  await expect(commands.lark(['im', '+messages-send'])).rejects.toMatchObject({ message: 'upload failed for ghp_1…ghij (999)', code: 999 })
 })
 it.skipIf(process.platform === 'win32')('names only the program and how it ended when a command prints no diagnostics, never its arguments', async () => {
   const commands = new Commands(() => deployment, {}, new AbortController().signal)

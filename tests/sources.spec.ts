@@ -1043,7 +1043,7 @@ describe.skipIf(process.platform === 'win32')('feishu event consumer', () => {
    * A bot CLI whose `event consume` behaves as `mode` says: `never` gets ready, `warn` warns once ready, `ready` stays up,
    * and `flaky` exits after its first ready. It records each run and the PID of the latest.
    */
-  function cli(mode: 'never' | 'warn' | 'ready' | 'flaky' | 'events' | 'late'): string {
+  function cli(mode: 'never' | 'warn' | 'leak' | 'ready' | 'flaky' | 'events' | 'late'): string {
     const path = join(dir, 'lark-bot')
     writeFileSync(path, `#!/bin/sh
   [ "$1" = event ] || { echo '{"ok":true,"data":{}}'; exit 0; }
@@ -1051,6 +1051,7 @@ describe.skipIf(process.platform === 'win32')('feishu event consumer', () => {
   case ${mode} in
     never) exec sleep 60 ;;
     warn) echo '[event] ready' >&2; echo 'WARN the connection was reset' >&2; exec sleep 60 ;;
+    leak) echo '[event] ready' >&2; echo 'WARN Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature' >&2; exec sleep 60 ;;
     ready) echo '[event] ready' >&2; exec sleep 60 ;;
     flaky) echo '[event] ready' >&2; [ "$n" -gt 1 ] && exec sleep 60; exit 1 ;;
     events) echo '[event] ready' >&2; cat '${dir}/events'; touch '${dir}/printed'; exec sleep 60 ;;
@@ -1168,6 +1169,14 @@ describe.skipIf(process.platform === 'win32')('feishu event consumer', () => {
     const { ctx, health, store } = consumerSource(cli('warn'))
     running = runFeishu(ctx, controller.signal)
     await vi.waitFor(() => expect(health.feishu).toMatchObject({ state: 'error', detail: 'WARN the connection was reset' }), until)
+    controller.abort(); await running; store.close()
+  }, 20_000)
+  it('redacts a credential in the diagnostic the consumer prints', async () => {
+    const { ctx, health, store } = consumerSource(cli('leak'))
+    running = runFeishu(ctx, controller.signal)
+    await vi.waitFor(() => expect(health.feishu).toMatchObject({ state: 'error',
+      detail: 'WARN Authorization: Bearer eyJh…ture' }), until)
+    expect(health.feishu?.detail ?? '').not.toContain('eyJhbGciOiJIUzI1NiJ9.payload.signature')
     controller.abort(); await running; store.close()
   }, 20_000)
   it('stops the consumer within five seconds once the Source is off', async () => {
