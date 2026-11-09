@@ -85,6 +85,11 @@ management API as the panel does (state, settings, prompts, the panel shell rout
 machine-readable receipt. Exit code is non-zero on any failed check, so a PDCA round or CI can gate on it.
 `pnpm verify:install -- --dsh <path>` runs it.
 
+**Adopted change — `scripts/doctor.mjs` (second round).** The pre-flight counterpart to the verification run, in
+the shape of `hermes doctor`: ordered named checks for Node.js and DSH engine ranges, the build artifacts, the git
+checkout, a named profile's `link:`, its `stateDir` and state-dir writability, and a last optional panel probe.
+`--json` prints one report, `--fix` creates a missing state directory, and a non-zero exit means an issue remains.
+
 ## 2. Improvement checklist
 
 Every item below is implemented and verified in this branch.
@@ -96,6 +101,7 @@ Every item below is implemented and verified in this branch.
 | 3 | Install / upgrade | Repeatable link-install verification against a throwaway profile | `scripts/verify-install.mjs`; 13 checks including panel API 200 and a written receipt | Done in `086ec65` |
 | 4 | Orchestration | Typed failure classification instead of one regex: network, rate-limit, overload and server failures retry (honouring `retry-after`); auth, billing and context-length failures reach a person | `src/executor/failure.ts` + `tests/failure.spec.ts`; `transient()` delegates to it; the turn-retry delay uses the provider hint | Done in this PR |
 | 5 | Architecture | Enforce the documented import rules as tests instead of prose only | `tests/architecture.spec.ts`: relative imports resolve, `src/core` stays inside itself, Sources never import the app, the panel imports only `src/app/api.ts` values | Done in this PR |
+| 6 | Install / upgrade | Pre-flight `doctor` with ordered checks, JSON output and exit codes | `scripts/doctor.mjs` + `tests/doctor.spec.ts`: node/dsh engine ranges, build artifacts, git state, profile link and `stateDir`, state writability, and a last panel probe | Done in this PR |
 
 The list is cleared. Rounds that produced no production change (orchestration, architecture) are recorded in §1
 with the evidence for why no transferable gap remained.
@@ -124,6 +130,7 @@ with the evidence for why no transferable gap remained.
 | 2 | Close the memory gap the benchmark found | Add `src/app/memory.ts`, the `runtime/memory` prompt part, the runtime hook and tests | `pnpm check` exit 0; `verify-install.mjs` receipt `ok: true` (13/13 checks, panel API 200) | Committed `086ec65` |
 | 3 | Prove the install from outside and record it | Add `scripts/verify-install.mjs` and its documentation; run it for the final revision | Receipt with commit, DSH version, every check and the panel answers; see [install-verification.md](install-verification.md) | Final commit and PR |
 | 4 | Close the orchestration and architecture gaps left in §1 | Add `src/executor/failure.ts` and wire it into `DshExecutor`; add `tests/architecture.spec.ts` | `tests/failure.spec.ts` and `tests/architecture.spec.ts` pass; `pnpm check` exits 0; `verify-install.mjs` passes again | This PR |
+| 5 | Close the install/upgrade diagnostics gap | Add `scripts/doctor.mjs` with the ordered checks hermes-agent's `hermes doctor` suggests, `--json`, `--fix` and non-zero exit | `tests/doctor.spec.ts` passes; `pnpm check` exits 0; `verify-install.mjs` passes again | This PR |
 
 ## 5. Sources
 
