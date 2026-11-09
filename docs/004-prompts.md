@@ -1,6 +1,6 @@
 # 004 Prompts
 
-This document explains what the agents read, what a team can edit, and when changes take effect. It builds on [000 Philosophy](000-philosophy.md) through [003 Execution](003-execution.md). Prompt text is written in English, except the Ticket scope and Delivery requirements defaults, which are Chinese.
+This document explains what the agents read, what a team can edit, and when changes take effect. It builds on [000 Philosophy](000-philosophy.md) through [003 Execution](003-execution.md). Prompt text is written in Chinese for the built-in parts, the two Source skills, and the Ticket scope and Delivery requirements defaults; the Communication default stays English, and a team may save its own text. Tool names, part keys, section headings and template placeholders stay in English.
 
 ## What a team writes
 
