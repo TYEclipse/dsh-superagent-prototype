@@ -67,6 +67,19 @@ it('reports Feishu failures with their code and without command arguments', () =
   expect(membership).toMatchObject({ message: 'operator is not in the chat (232011)', code: 232011 })
   expect(commandError({stderr:JSON.stringify({error:{code:999,message:'scope missing'}})}).message).toBe('scope missing (999)')
 })
+it('masks a credential a spawned command prints to stderr before it becomes the error message', async () => {
+  const commands = new Commands(() => deployment, {}, new AbortController().signal)
+  const token = 'ghp_1234567890abcdefghijklmnopqrstuvwxyz'
+  const script = `process.stderr.write('fatal: authentication failed for ${token}\\n'); process.exitCode = 3`
+  const failure = await commands.run(process.execPath, ['-e', script]).catch((error: unknown) => error)
+  expect(failure).toBeInstanceOf(CliError)
+  expect(failure).toMatchObject({ message: 'fatal: authentication failed for ghp_1…wxyz', exitCode: 3 })
+  expect((failure as Error).message).not.toContain(token)
+})
+it('masks a credential in the JSON error a CLI reports', () => {
+  const failure = commandError({ stderr: JSON.stringify({ error: { code: 999, message: 'upstream rejected x-api-key: sk_live_1234567890abcdef' } }), code: 1 })
+  expect(failure).toMatchObject({ message: 'upstream rejected x-api-key: sk_l…cdef (999)', code: 999, exitCode: 1 })
+})
 describe('Channels', () => {
   const commands = () => new Commands(() => deployment, {}, new AbortController().signal)
   const feishu = { ...reply, channel: feishuChannel('oc_1', 'om_1') }
