@@ -22,16 +22,17 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 | ID | Priority | Dimension | Gap | Status | PR |
 | --- | --- | --- | --- | --- | --- |
-| GAP-01 | P0 | Architecture (security boundary) | Redact credentials from subprocess output before it becomes Ticket state | fixing (round 1) | — |
-| GAP-02 | P1 | Install / upgrade | `doctor` must prove the built `lib/` matches the checkout | fixing (round 1) | — |
+| GAP-01 | P0 | Architecture (security boundary) | Redact credentials from subprocess output before it becomes Ticket state | review (round 1) | this PR |
+| GAP-02 | P1 | Install / upgrade | `doctor` must prove the built `lib/` matches the checkout | review (round 1) | this PR |
 | GAP-03 | P1 | Orchestration | Classify and bound prepare-command failures | proposed | — |
 | GAP-04 | P2 | Memory / state | Bounded, reversible retention for domain records | blocked (needs a policy decision) | — |
+| GAP-05 | P1 | Architecture (security boundary) | Redaction edge: lowercase cookie headers in JSON dumps | proposed | — |
 
 ## Items
 
 ### GAP-01 — Redact credentials from subprocess output before it becomes Ticket state
 
-- **Status:** fixing (round 1)
+- **Status:** review (round 1); PR: this PR
 - **Fingerprint:** `redact-subprocess-output`
 - **Dimension:** architecture (the boundary between `src/infra` I/O and `src/core` state)
 - **Reference:** `agent/redact.py:1474-1479` (`redact_sensitive_text`), `:1780-1783`
@@ -62,7 +63,7 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 ### GAP-02 — `doctor` must prove the built `lib/` matches the checkout
 
-- **Status:** fixing (round 1)
+- **Status:** review (round 1); PR: this PR
 - **Fingerprint:** `doctor-build-current`
 - **Dimension:** install / upgrade
 - **Reference:** `scripts/verify-bootstrap-version-stamp.py:1-8,9-18` (the stamp "must tell the
@@ -132,11 +133,31 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
   `tests/retention.spec.ts` and a v11→v12 `tests/migration.spec.ts` case. Expected ~200 lines +
   migration + tests.
 
+### GAP-05 — Redaction edge: lowercase cookie headers in JSON dumps
+
+- **Status:** proposed
+- **Fingerprint:** `redact-lowercase-cookie`
+- **Dimension:** architecture (security boundary)
+- **Reference:** `agent/redact_headers.py:13,166-204` (header-name list and idempotent masking);
+  `agent/redact.py:1474-1479`.
+- **Local:** `src/infra/redact.ts` matches capitalized `Cookie`/`Set-Cookie` only. A lowercased
+  JSON header dump (`"cookie": "…"`) is not masked. The round-1 verifier confirmed this
+  empirically. Masking lowercase headers naively would re-introduce the `the cookie: …`
+  false positive the round-1 acceptance forbids.
+- **Why it transfers:** a JSON request/response dump is a realistic credential surface, and
+  header names are case-insensitive in HTTP. hermes' list is applied at the header boundary.
+- **Acceptance:** mask `"cookie": "…"`, `"set-cookie": "…"` and a line-start `cookie:` /
+  `set-cookie:` value while leaving prose such as `the cookie: …` alone; keep idempotence.
+- **Verify:** `tests/redact.spec.ts` cases for the JSON-key and line-start forms plus the prose
+  negative case; `pnpm check`.
+- **Risk:** false positives if the shape gate is too broad; keep the header-name context
+  (quoted key or line start) as the gate.
+
 ## Round log
 
 | Round | Date | Reference | Found | Fixed | Gates | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 (bootstrap) | 2026-11-09 | `e9b8587` | 4 ranked + 8 rejected | GAP-01, GAP-02 (this PR) | `pnpm check`; `verify:install` — _pending_ | This Ticket validates the protocol once; future rounds are driven by the host automation. |
+| 1 (bootstrap) | 2026-11-09 | `e9b8587` | 4 ranked + 8 rejected; verification added GAP-05 | GAP-01 (+ repair), GAP-02 (this PR); GAP-05 filed | `pnpm check` exit 0; `verify:install` _pending_; independent verifier PASS + delta | This Ticket validates the protocol once; future rounds are driven by the host automation. |
 
 ## Not adopted
 
