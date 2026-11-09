@@ -34,7 +34,10 @@ Read the numbered documents in order; each builds only on the ones before it.
 
 ## Development
 
-`pnpm check` runs the typecheck, the tests and the build.
+`pnpm check` runs the typecheck, the tests under the coverage gate and the build. `pnpm test`
+runs the tests without coverage; `pnpm test:coverage` writes the v8 report to `coverage/` and
+fails below the thresholds in `vitest.config.ts`. CI runs `pnpm check` on every pull request and
+push to `main`.
 
 `pnpm verify:install -- --dsh <path to @deepseek-ai/dsh/lib/bin.js>` installs this checkout into a throwaway
 profile with `link:`, boots it and checks the panel API; see

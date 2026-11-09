@@ -174,8 +174,10 @@ A round is one scheduled session with a hard boundary. It runs these steps in or
 A round is ready only when all of these hold:
 
 - The targeted tests for each changed behavior pass, and `pnpm check` (typecheck, full test
-  suite, build) exits 0 on the integrated commit. On native Windows the POSIX-only suites skip
-  by design; the skip is recorded, not hidden.
+  suite under the coverage gate, build) exits 0 on the integrated commit. The coverage gate is
+  `pnpm test:coverage`: statements, branches, functions and lines must stay above the thresholds
+  in `vitest.config.ts`. On native Windows the POSIX-only suites skip by design; the skip is
+  recorded, not hidden.
 - `node scripts/verify-install.mjs` exits 0 when the change can affect loading or the panel
   (`src/`, `cordis.patch.yml`, `package.json`, `scripts/`); a docs-only round may record why it
   skipped the link-install run.

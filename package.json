@@ -48,7 +48,8 @@
     "build": "tsdown",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "test:coverage": "vitest run --coverage",
+    "check": "pnpm typecheck && pnpm test:coverage && pnpm build",
     "doctor": "node scripts/doctor.mjs",
     "verify:install": "node scripts/verify-install.mjs"
   },
@@ -117,6 +118,7 @@
     "tsdown": "0.22.14",
     "typescript": "6.0.3",
     "vitest": "4.1.8",
+    "@vitest/coverage-v8": "4.1.8",
     "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
     "@deepseek-ai/dsh-attachment": "0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
