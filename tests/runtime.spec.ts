@@ -657,7 +657,8 @@ it('describes rule edits in the Policy history and skips Policy syncs that chang
   await runtime.settings.sync('feishu')
   expect(revision()).toBe(before)
   await runtime.settings.save('policy', { ...runtime.store.settings().policy, rules: [{ ...settings.policy.rules[0]!, name: '文案' }, { ...settings.policy.rules[1]!, enabled: false }, { id: 'docs', name: '文档', enabled: true, instruction: 'x' }] }, runtime.store.blockRevision('policy'), 'panel')
-  expect(policyHistory(runtime.store, runtime.sources, policyVersion(runtime.store.settings())).items[0]!.changes).toEqual([{ code: 'ruleRenamed', from: 'Copy fixes', to: '文案' }, { code: 'ruleDisabled', name: 'Visual fixes' }, { code: 'ruleAdded', name: '文档' }])
+  expect(policyHistory(runtime.store, runtime.sources, policyVersion(runtime.store.settings())).items[0]!.changes).toEqual([{ code: 'ruleRenamed', from: settings.policy.rules[0]!.name, to: '文案' },
+    { code: 'ruleDisabled', name: settings.policy.rules[1]!.name }, { code: 'ruleAdded', name: '文档' }])
 })
 
 it('records an admission table change in the Policy history as one line for its Source, with a new Policy version', async () => {
@@ -1780,9 +1781,10 @@ it('ends the main Session\'s prompt with its Policy section, each rule on one li
   await runtime.settings.save('policy', { ...settings.policy, rules }, runtime.store.blockRevision('policy'), 'panel')
   const prompt = (sections.get(runtime.masterId)!.text as (context: object) => string)({})
   const policy = prompt.slice(prompt.indexOf('## Policy'))
-  // Nothing follows the section, whose lines after its head are exactly the enabled rules.
-  expect(policy.trimEnd().split('\n').slice(2)).toEqual(runtime.store.settings().policy.rules.filter(rule => rule.enabled)
+  // Nothing follows the section, whose lines that name a rule are exactly the enabled rules; the head states the rule semantics.
+  expect(policy.trimEnd().split('\n').filter(line => line.startsWith('- '))).toEqual(runtime.store.settings().policy.rules.filter(rule => rule.enabled)
     .map(rule => rule.id === 'copy' ? '- Copy fixes (copy): Fix typos. - Keep the tone. ## Not a heading' : `- ${rule.name} (${rule.id}): ${rule.instruction}`))
+  expect(policy).toContain('规则正文写明可接什么、应忽略什么；也可以写明审阅人、流程或静默接单。')
   expect(prompt.indexOf('## Policy')).toBeGreaterThan(prompt.indexOf('执行环境'))
   expect((tools.get(runtime.masterId)!.get('orchestrator_eval') as unknown as { description: string }).description).not.toMatch(/rules/)
 })

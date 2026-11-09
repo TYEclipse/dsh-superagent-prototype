@@ -35,6 +35,7 @@ Read the numbered documents in order; each builds only on the ones before it.
 - [010 Ticket scope prompt, Chinese](docs/010-scope-prompt-zh.md): the researched Chinese rewrite that is now the default Ticket scope, with the evidence and trade-offs behind it
 - [011 Delivery requirements prompt, Chinese](docs/011-delivery-prompt-zh.md): the researched Chinese rewrite that is now the default Delivery requirements, with the evidence and trade-offs behind it
 - [012 Built-in prompts and skills, Chinese](docs/012-built-in-prompts-zh.md): the Chinese rewrite of the remaining built-in parts and both Source skills, with the evidence and trade-offs behind it
+- [013 Policy and admission prompts, Chinese](docs/013-policy-prompt-zh.md): the researched rewrite of the acceptance-rule prompt surface and the default rules, with the evidence and trade-offs behind it
 
 ## Development
 
