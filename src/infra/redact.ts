@@ -11,10 +11,10 @@ function mask(value: string, head = 4, tail = 4): string {
   return `${value.slice(0, head)}${MASK}${value.slice(-tail)}`
 }
 
-/** GitHub personal access, OAuth and server-to-server tokens; the scheme prefix stays visible. */
-const GITHUB_TOKEN = /\b(gh[pos]_|github_pat_)([A-Za-z0-9_]{8,})/g
-/** A bearer credential in an `Authorization` header, in plain text or a JSON dump. */
-const BEARER = /((?<![\w-])Authorization["']?\s*:\s*["']?Bearer\s+)([^\s,;"']+)/gi
+/** GitHub personal access, OAuth, user-to-server, server-to-server and refresh tokens; the scheme prefix stays visible. */
+const GITHUB_TOKEN = /\b(gh[posru]_|github_pat_)([A-Za-z0-9_]{8,})/g
+/** A bearer or basic credential in an `Authorization` header, in plain text or a JSON dump. */
+const AUTHORIZATION = /((?<![\w-])Authorization["']?\s*:\s*["']?(?:Bearer|Basic)\s+)([^\s,;"']+)/gi
 /** An API-key header or assignment, in plain text or a JSON dump. */
 const API_KEY = /((?<![\w-])(?:x-api-key|api-key)["']?\s*[:=]\s*["']?)([^\s,;"']+)/gi
 /** A `Cookie` or `Set-Cookie` header: its value, quoted in a JSON dump or running to the end of the line in plain text. */
@@ -40,7 +40,7 @@ export function redactSecrets(text: string): string {
       return `-----BEGIN ${label}PRIVATE KEY-----${MASK}${whole.endsWith(end) ? end : ''}`
     })
     .replace(GITHUB_TOKEN, (whole, scheme: string, token: string) => token.includes(MASK) ? whole : `${scheme}${mask(token, 1, 4)}`)
-    .replace(BEARER, (_, header: string, token: string) => header + mask(token))
+    .replace(AUTHORIZATION, (_, header: string, token: string) => header + mask(token))
     .replace(API_KEY, (_, header: string, key: string) => header + mask(key))
     .replace(COOKIE, (whole, header: string, double?: string, single?: string, plain?: string) => {
       if (double !== undefined) return `${header}"${mask(double)}"`

@@ -7,6 +7,7 @@ import { threadKey, type Thread, type Trigger } from '../core/index.ts'
 import { feishuChatLink } from './feishu-channel.ts'
 import type { FeishuBot } from '../deployment.ts'
 import { CliError, validItems, type Tally } from '../infra/commands.ts'
+import { redactSecrets } from '../infra/redact.ts'
 import { readFeishu, type FeishuRef } from './feishu-read.ts'
 import { feishuRef, feishuTime, feishuTrigger, HistoricalMessageSchema, historyEvent, HistoryPageSchema, SOURCE, topicEvent }
   from './feishu-trigger.ts'
@@ -77,7 +78,7 @@ async function consume(ctx: SourceContext, signal: AbortSignal): Promise<void> {
   signal.addEventListener('abort', stop, { once: true })
   const timeout = setTimeout(() => { diagnostic = 'Feishu event consumer did not become ready within 45 seconds'; stop() }, 45_000)
   stderr.on('line', (line: string) => {
-    diagnostic = line.slice(0, 4000)
+    diagnostic = redactSecrets(line.slice(0, 4000))
     if (line.startsWith('[event] ready')) {
       ready = true; clearTimeout(timeout)
       ctx.report('feishu', { state: 'ready', detail: 'Listening for bot events', at: new Date().toISOString() })

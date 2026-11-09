@@ -114,7 +114,7 @@ export class Commands {
       .catch((error: unknown) => { throw authorization(membership(error)) })
     const result = JSON.parse(output) as { ok: boolean; data: T; error?: { code?: number; message?: string } }
     const code = result.error?.code
-    if (!result.ok) throw authorization(membership(new CliError(`${result.error?.message ?? 'Feishu command failed'}${code ? ` (${code})` : ''}`, code)))
+    if (!result.ok) throw authorization(membership(new CliError(redactSecrets(`${result.error?.message ?? 'Feishu command failed'}${code ? ` (${code})` : ''}`), code)))
     return result.data
   }
   /** Runs `git` on PATH using the agent's isolated git environment and credential helper. */

@@ -195,6 +195,11 @@ it('says where to grant the missing permission when Feishu answers 230027, and k
   run.mockResolvedValueOnce(JSON.stringify({ ok: false, error: { code: 230027, message: 'access denied for this bot operation' } }))
   await expect(commands.lark(['api', 'GET', '/open-apis/im/v1/messages'])).rejects.toMatchObject({ message: hint, code: 230027 })
 })
+it('masks a credential in the Feishu error message a command reports', async () => {
+  const commands = new Commands(() => deployment, {}, new AbortController().signal)
+  vi.spyOn(commands, 'run').mockResolvedValue(JSON.stringify({ ok: false, error: { code: 999, message: 'upload failed for ghp_1234567890abcdefghij' } }))
+  await expect(commands.lark(['im', '+messages-send'])).rejects.toMatchObject({ message: 'upload failed for ghp_1…ghij (999)', code: 999 })
+})
 it.skipIf(process.platform === 'win32')('names only the program and how it ended when a command prints no diagnostics, never its arguments', async () => {
   const commands = new Commands(() => deployment, {}, new AbortController().signal)
   const secret = 'secret reply text'
