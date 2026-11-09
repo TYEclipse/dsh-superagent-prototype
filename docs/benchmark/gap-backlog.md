@@ -22,8 +22,8 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 | ID | Priority | Dimension | Gap | Status | PR |
 | --- | --- | --- | --- | --- | --- |
-| GAP-01 | P0 | Architecture (security boundary) | Redact credentials from subprocess output before it becomes Ticket state | review (round 1) | this PR |
-| GAP-02 | P1 | Install / upgrade | `doctor` must prove the built `lib/` matches the checkout | review (round 1) | this PR |
+| GAP-01 | P0 | Architecture (security boundary) | Redact credentials from subprocess output before it becomes Ticket state | review (round 1) | #8 |
+| GAP-02 | P1 | Install / upgrade | `doctor` must prove the built `lib/` matches the checkout | review (round 1) | #8 |
 | GAP-03 | P1 | Orchestration | Classify and bound prepare-command failures | proposed | — |
 | GAP-04 | P2 | Memory / state | Bounded, reversible retention for domain records | blocked (needs a policy decision) | — |
 | GAP-05 | P1 | Architecture (security boundary) | Redaction edge: lowercase cookie headers in JSON dumps | proposed | — |
@@ -32,7 +32,7 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 ### GAP-01 — Redact credentials from subprocess output before it becomes Ticket state
 
-- **Status:** review (round 1); PR: this PR
+- **Status:** review (round 1); PR: #8
 - **Fingerprint:** `redact-subprocess-output`
 - **Dimension:** architecture (the boundary between `src/infra` I/O and `src/core` state)
 - **Reference:** `agent/redact.py:1474-1479` (`redact_sensitive_text`), `:1780-1783`
@@ -63,7 +63,7 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 ### GAP-02 — `doctor` must prove the built `lib/` matches the checkout
 
-- **Status:** review (round 1); PR: this PR
+- **Status:** review (round 1); PR: #8
 - **Fingerprint:** `doctor-build-current`
 - **Dimension:** install / upgrade
 - **Reference:** `scripts/verify-bootstrap-version-stamp.py:1-8,9-18` (the stamp "must tell the
@@ -157,7 +157,7 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 | Round | Date | Reference | Found | Fixed | Gates | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 (bootstrap) | 2026-11-09 | `e9b8587` | 4 ranked + 8 rejected; verification added GAP-05 | GAP-01 (+ repair), GAP-02 (this PR); GAP-05 filed | `pnpm check` exit 0; `verify:install` _pending_; independent verifier PASS + delta | This Ticket validates the protocol once; future rounds are driven by the host automation. |
+| 1 (bootstrap) | 2026-11-09 | `e9b8587` | 4 ranked + 8 rejected; verification added GAP-05 | GAP-01 (+ repair), GAP-02 (PR #8); GAP-05 filed | `pnpm check` exit 0; `verify:install` 13/13 (receipt commit `feba6ee`); independent verifier PASS + delta PASS | PR #8; future rounds are driven by the host automation. |
 
 ## Not adopted
 
