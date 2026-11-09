@@ -6,7 +6,24 @@
 that the plugin loads and serves its panel. This file records the runs used by the PDCA rounds in
 [benchmark-report.md](benchmark-report.md).
 
-## Final run (this branch)
+## Latest run (this branch)
+
+| | |
+| --- | --- |
+| Date | 2026-11-09 21:11 CST (2026-11-09T13:11Z) |
+| Host | Windows 11, Node.js 24.13.0, pnpm 11.7.0 |
+| DSH | `@deepseek-ai/dsh` **0.2.2-rc.1** (local install at `C:\Users\tyecl\.dsh\state\superagent-desktop\work\.tools\dsh-0.2.2-rc.1`) |
+| Checkout | commit `3269667f8d4844631e655115f2a8dd8f5912de6e` |
+| Command | `node scripts/verify-install.mjs --dsh <…>/node_modules/@deepseek-ai/dsh/lib/bin.js --receipt .artifacts/ticket-install-verification.json` |
+| Result | **exit 0 — 13/13 checks passed** |
+| Receipt | `.artifacts/ticket-install-verification.json` |
+
+The branch also removes the two startup failures a *configured* Windows profile would hit: the main Session's tool
+restriction named `bash`, which DSH disables on Windows (the shell there is `pwsh`), and setup probes relied on a
+POSIX `env` wrapper whose MSYS build rewrites leading-slash arguments. The fresh-profile checks above do not
+configure setup, so they do not exercise the first; `pnpm test` covers both seams (1,235 passed, 42 skipped).
+
+## Round 4 run (PR #5)
 
 | | |
 | --- | --- |
