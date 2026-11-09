@@ -99,6 +99,8 @@ export class Runtime extends Service implements SourceHost {
       const store = opened = this.store = new Store(join(machine.stateDir, 'orchestrator.sqlite'), report)
       // Project memory reads and writes the store's KV area; worker prompts read it on every request.
       const memory = new Memory(store)
+      // Age old notes out of the prompt once per start; the archive keeps them without deleting them.
+      memory.curate()
       const setup = this.setup = new Setup({ context: ctx, machine, lifetime: this.lifetime, restart })
       const deployed = () => setup.configured()
         ? environmentOf({ deployment: setup.deployment, sources: this.sources, settings: store.settings() }) : undefined

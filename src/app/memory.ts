@@ -24,6 +24,8 @@ export const MEMORY_NOTES = 100
 /** Characters kept from one Report summary, and from a whole rendered memory section. */
 export const MEMORY_NOTE_CHARS = 400
 export const MEMORY_CHARS = 3_000
+/** Notes older than this move out of the prompt into the archive, which keeps them without deleting them. */
+export const MEMORY_MAX_AGE_DAYS = 90
 
 /** Collapse whitespace and bound one note's field, so a note is always one prompt line. */
 const oneLine = (value: string, max: number): string => {
@@ -41,6 +43,28 @@ export class Memory {
   /** The remembered Tickets, newest first. */
   list(): MemoryNote[] {
     return this.store.get(KV.memory.notes) ?? []
+  }
+
+  /** The notes that aged out of the prompt; kept for history, never rendered. */
+  archive(): MemoryNote[] {
+    return this.store.get(KV.memory.archive) ?? []
+  }
+
+  /**
+   * Moves notes older than `maxAgeDays` to the archive, so an old project does not crowd the worker prompt.
+   * The archive is append-only in practice: a curated note is never deleted, and running this again changes nothing.
+   */
+  curate(now = new Date(), maxAgeDays = MEMORY_MAX_AGE_DAYS): void {
+    const cutoff = now.getTime() - maxAgeDays * 86_400_000
+    const old = this.list().filter(note => {
+      const at = Date.parse(note.at)
+      return Number.isFinite(at) && at < cutoff
+    })
+    if (!old.length) return
+    // Compare by ticket id: `list()` deserializes a fresh array each call, so object identity does not survive it.
+    const archived = new Set(old.map(note => note.ticketId))
+    this.store.set(KV.memory.notes, this.list().filter(note => !archived.has(note.ticketId)))
+    this.store.set(KV.memory.archive, [...this.archive(), ...old])
   }
 
   /** Records a Ticket that ended: its title, outcome and latest Report summary, once, at the front of the list. */

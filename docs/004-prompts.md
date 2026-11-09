@@ -32,7 +32,7 @@ The generated sections are editable templates. They must retain these placeholde
 - `runtime/environment`: `{variables}`, filled with execution environment lines.
 - `runtime/policy`: `{version}`, `{mode}` and `{rules}`, with one line per enabled rule.
 - `runtime/policy/none`: `{version}` and `{mode}`, used when no rule is enabled.
-- `runtime/memory`: `{notes}`, filled with one line per remembered finished Ticket; the section is absent while no Ticket has ended.
+- `runtime/memory`: `{notes}`, filled with one line per remembered finished Ticket; the section is absent while no Ticket has ended. Notes older than 90 days move to an archive that no prompt reads.
 
 Editing a part changes the instructions the model receives. It does not change the gate, Mandates, tool checks or account wrappers, which remain enforced by code.
 
