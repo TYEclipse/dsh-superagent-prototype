@@ -76,6 +76,9 @@ by this fork; use the upstream repository for those.
   `lib/` artifacts, the git checkout, a profile's `link:` and `stateDir`,
   state-dir writability, and a last optional panel probe. It supports `--json`,
   `--fix` (creates a missing state directory) and exits non-zero on an issue.
+- `feat(memory): archive notes older than the prompt window` — `Memory.curate`
+  runs at startup and moves notes older than 90 days from the worker prompt's
+  notes into an archive that no prompt reads; running it again changes nothing.
 
 ## Install on DSH 0.2.2-rc.1
 

@@ -68,7 +68,9 @@ outcome and latest Report summary; the newest 100 notes are kept, each summary i
 to 400 characters, and the rendered section is capped at 3,000 characters. The worker prompt gains a generated
 `runtime/memory` section only while a note exists; the main Session never receives it. The preamble marks the notes
 as facts from earlier work, not instructions — the portable half of hermes-agent's fence/sanitize discipline without
-its LLM summarizer or background provider.
+its LLM summarizer or background provider. In a later round the notes gained the curator's reversible half:
+`Memory.curate` moves notes older than 90 days to an archive at startup, so the prompt stays recent while history is
+never deleted.
 
 ### 1.4 Install / upgrade
 
@@ -102,6 +104,7 @@ Every item below is implemented and verified in this branch.
 | 4 | Orchestration | Typed failure classification instead of one regex: network, rate-limit, overload and server failures retry (honouring `retry-after`); auth, billing and context-length failures reach a person | `src/executor/failure.ts` + `tests/failure.spec.ts`; `transient()` delegates to it; the turn-retry delay uses the provider hint | Done in this PR |
 | 5 | Architecture | Enforce the documented import rules as tests instead of prose only | `tests/architecture.spec.ts`: relative imports resolve, `src/core` stays inside itself, Sources never import the app, the panel imports only `src/app/api.ts` values | Done in this PR |
 | 6 | Install / upgrade | Pre-flight `doctor` with ordered checks, JSON output and exit codes | `scripts/doctor.mjs` + `tests/doctor.spec.ts`: node/dsh engine ranges, build artifacts, git state, profile link and `stateDir`, state writability, and a last panel probe | Done in this PR |
+| 7 | Memory | Age notes older than 90 days into an archive instead of deleting them, as hermes-agent's curator archives rather than removes learned material | `Memory.curate` + `tests/memory.spec.ts`: old notes leave the prompt, recent ones stay, running it again changes nothing | Done in this PR |
 
 The list is cleared. Rounds that produced no production change (orchestration, architecture) are recorded in §1
 with the evidence for why no transferable gap remained.
@@ -131,6 +134,7 @@ with the evidence for why no transferable gap remained.
 | 3 | Prove the install from outside and record it | Add `scripts/verify-install.mjs` and its documentation; run it for the final revision | Receipt with commit, DSH version, every check and the panel answers; see [install-verification.md](install-verification.md) | Final commit and PR |
 | 4 | Close the orchestration and architecture gaps left in §1 | Add `src/executor/failure.ts` and wire it into `DshExecutor`; add `tests/architecture.spec.ts` | `tests/failure.spec.ts` and `tests/architecture.spec.ts` pass; `pnpm check` exits 0; `verify-install.mjs` passes again | This PR |
 | 5 | Close the install/upgrade diagnostics gap | Add `scripts/doctor.mjs` with the ordered checks hermes-agent's `hermes doctor` suggests, `--json`, `--fix` and non-zero exit | `tests/doctor.spec.ts` passes; `pnpm check` exits 0; `verify-install.mjs` passes again | This PR |
+| 6 | Keep the memory prompt recent without deleting history | Add `Memory.curate`: notes older than 90 days move to an archive the prompt never reads | `tests/memory.spec.ts` covers moving old notes, keeping recent ones, and idempotence; `pnpm check` exits 0; `verify-install.mjs` passes again | This PR |
 
 ## 5. Sources
 

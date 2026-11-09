@@ -48,6 +48,21 @@ describe('project memory', () => {
     expect(renderMemory(notes, 40).split('\n')).toEqual(['- Fix 3 — completed: Learned 3.'])
   })
 
+  it('archives notes older than the window and keeps the recent ones in the prompt', () => {
+    const memory = new Memory(store)
+    store.set(KV.memory.notes, [
+      { ...note(3), at: '2026-11-01T00:00:00.000Z' },
+      { ...note(2), at: '2026-10-01T00:00:00.000Z' },
+      { ...note(1), at: '2025-01-01T00:00:00.000Z' }])
+    memory.curate(new Date('2026-11-09T00:00:00.000Z'), 90)
+    expect(memory.list().map(item => item.ticketId)).toEqual(['t3', 't2'])
+    expect(memory.archive().map(item => item.ticketId)).toEqual(['t1'])
+    memory.curate(new Date('2026-11-09T00:00:00.000Z'), 90)
+    expect(memory.archive()).toHaveLength(1)
+    expect(renderMemory(memory.list())).toContain('Fix 3')
+    expect(renderMemory(memory.list())).not.toContain('Fix 1')
+  })
+
   it('adds one generated Project memory section to the worker prompt, and never to the main Session', () => {
     store.set(KV.memory.notes, [note(2), note(1)])
     const section = memorySection(defaultPrompts(), store.get(KV.memory.notes)!)
