@@ -79,6 +79,17 @@ by this fork; use the upstream repository for those.
 - `feat(memory): archive notes older than the prompt window` — `Memory.curate`
   runs at startup and moves notes older than 90 days from the worker prompt's
   notes into an archive that no prompt reads; running it again changes nothing.
+- `feat(executor): retry a passing prepare failure safely` — the prepare command
+  is the last failure seam outside `classifyFailure`. A passing failure now
+  retries twice on the launch backoff, but only when the attempt left no
+  directory (`ENOENT` or a successful `rmdir`): a non-empty directory is kept
+  and the Ticket fails without a retry, because an existing directory counts
+  as prepared. Authentication, billing, context, unknown failures and an
+  aborted attempt fail at once; the report names the classification and the
+  number of attempts. The classifier also recognizes the transport wording
+  git and gh emit (`Could not resolve host`, `Failed to connect to … port`,
+  `Connection was reset`, `The remote end hung up unexpectedly`, and
+  `Temporary failure in name resolution`). See [012](docs/012-prepare-retry-zh.md).
 - `test(coverage): gate the suite with v8 coverage` — `@vitest/coverage-v8` is
   pinned to the Vitest version, and `pnpm test:coverage` writes `coverage/`
   (text, JSON summary and HTML). `pnpm check` now runs the suite under that gate

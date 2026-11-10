@@ -50,7 +50,7 @@ Worker subagents, including nested ones, use DeepSeek Harness's `standard` prese
 
 Before the first Assignment, if the Ticket directory does not exist, the prepare command runs once with `sh` in the execution root. It has ten minutes to finish. Without a prepare command, the worker starts in an empty directory.
 
-A failed command fails the Ticket and records its output. A retry or a person's message on one of the Ticket's Threads tries preparation again. A typical command uses `git worktree` to create a checkout. A pull request belongs to the Ticket when its branch's last path segment matches the Ticket's short name.
+A command that fails for a passing reason is tried again after the launch backoff, at most twice, and only when the failed attempt left no directory: an existing directory counts as prepared, so a command that left files behind is not run again. Authentication, billing, context-length and unknown failures fail the Ticket at once, and so does a retry after files remain. The Ticket's report names the classification and how many attempts ran. A retry or a person's message on one of the Ticket's Threads tries preparation again after that. A typical command uses `git worktree` to create a checkout. A pull request belongs to the Ticket when its branch's last path segment matches the Ticket's short name.
 
 ### Concurrency
 
@@ -121,7 +121,7 @@ Sources poll subscribed Threads while a live Ticket subscribes, and for two week
 
 When an Executor Session reports `blocked` or `failed`, or fails to start or errors, which records `failed`, the Ticket takes no automatic Input.
 
-A passing failure of the model provider or the network, an HTTP 408, 429 or 5xx or a refused, reset or timed-out connection, is tried again first, three times with a growing backoff: a launch runs again, and a worker whose turn failed is told to go on; a failed prepare command is not tried again.
+A passing failure of the model provider or the network, an HTTP 408, 429 or 5xx or a refused, reset or timed-out connection, is tried again first, three times with a growing backoff: a launch runs again, and a worker whose turn failed is told to go on. A failed prepare command follows its own rule: two retries after a passing failure, and only while the failed attempt left no directory.
 
 Once failed, CI and bot messages are recorded on it, but they are not delivered and do not wake the Session.
 
