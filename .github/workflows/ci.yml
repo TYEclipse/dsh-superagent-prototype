@@ -8,14 +8,14 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      # A newer push to the same ref makes the older check obsolete.
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -34,3 +34,27 @@ jobs:
           path: coverage/
           if-no-files-found: ignore
           retention-days: 7
+
+  release:
+    needs: check
+    # Every update to main gets a new version; a release commit never starts another release.
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      # Serialize releases: two quickly merged pull requests publish two versions, in order.
+      group: release-main
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Bump the patch version, tag it, and publish a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release.mjs

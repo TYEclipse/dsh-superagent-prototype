@@ -46,6 +46,11 @@ runs the tests without coverage; `pnpm test:coverage` writes the v8 report to `c
 fails below the thresholds in `vitest.config.ts`. CI runs `pnpm check` on every pull request and
 push to `main`.
 
+Every push to `main` that passes CI also publishes a release: `scripts/release.mjs` bumps the patch
+version in `package.json`, commits it as `chore(release): v<version>`, tags the commit and creates a
+GitHub release with generated notes. `pnpm release:plan` prints the version a push would publish
+without changing anything.
+
 `pnpm verify:install -- --dsh <path to @deepseek-ai/dsh/lib/bin.js>` installs this checkout into a throwaway
 profile with `link:`, boots it and checks the panel API; see
 [docs/benchmark/install-verification.md](docs/benchmark/install-verification.md).

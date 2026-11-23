@@ -259,6 +259,10 @@ From an allowed GitHub account, open an Issue or post a comment containing `@<ag
 3. Run `git pull && pnpm install && pnpm build`.
 4. Run `scripts/dsh-superagent restart` and inspect its status.
 
+Every push to `main` that passes CI publishes a new patch release (`v<version>`): the release job
+bumps `package.json`, tags the checked commit and creates the GitHub release. Pull after that job
+has finished, so the checkout you build names the version you are running.
+
 A restart ends running Assignments and starts replacements with recovery notes. Team text and overridden prompt parts are retained; parts without overrides follow the new defaults. Review parts marked **Default updated** after upgrading.
 
 A database migrated by a newer version cannot be opened by an older one. Rollback therefore requires the pre-upgrade backup. After upgrading DeepSeek Harness itself, restart the running instance so the panel loads matching artifacts.
