@@ -240,10 +240,12 @@ export class Engine {
   /**
    * Handles an assignment that was running when the host stopped: restarts it with a recovery note unless its latest report is
    * `waiting`, `ready`, `blocked`, or `failed` and no Input reached its worker after that report, in which case it keeps its
-   * Session and state and gets the Inputs that wait for it.
+   * Session and state and gets the Inputs that wait for it. A ticket restarted too many times without a worker report fails
+   * instead of starting another assignment.
+   * @returns The failed ticket when the recovery limit was reached, undefined otherwise.
    */
-  assignmentInterrupted(ticketId: string, assignmentId: string): void {
-    this.repo.atomic(() => { this.assignments.interrupted(ticketId, assignmentId) })
+  assignmentInterrupted(ticketId: string, assignmentId: string): Ticket | undefined {
+    return this.repo.atomic(() => this.assignments.interrupted(ticketId, assignmentId))
   }
 
   // Settings

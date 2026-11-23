@@ -566,7 +566,10 @@ export class DshExecutor implements Executor {
         // Input that was handed over but not yet taken.
         this.host.context.agents.get(workerSessionId(ticket.id) as SessionId)?.cancel({ kind: 'user' }, { keepInbox: true })
         this.stopWork(ticket.id, 'dsh-superagent restarted', true)
-        this.host.engine.assignmentInterrupted(ticket.id, running.id)
+        const failed = this.host.engine.assignmentInterrupted(ticket.id, running.id)
+        const report = failed && latestReport(failed)
+        // The recovery limit failed the ticket instead of restarting it: tell the main Session, as any other failure does.
+        if (failed && report) this.relay(resultRelay(failed, 'failed', report.summary))
       }
       else if (latest?.state === 'pending' && !waitsForPerson(ticket)) this.start(ticket, latest)
     }

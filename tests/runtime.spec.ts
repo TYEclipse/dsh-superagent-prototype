@@ -24,6 +24,7 @@ import { feishuKind } from '../src/sources/feishu.ts'
 import { githubKind, pollRound } from '../src/sources/github.ts'
 import { CliError, Commands } from '../src/infra/commands.ts'
 import { UserError, key, runningAssignment, said, threadKey, waitsForPerson, type Trigger } from '../src/core/index.ts'
+import { MAX_RECOVERIES } from '../src/core/assignments.ts'
 import { feishuTrigger } from '../src/sources/feishu.ts'
 import { feishuChannel } from '../src/sources/feishu-trigger.ts'
 import { commentTrigger, githubChannel } from '../src/sources/github-trigger.ts'
@@ -540,6 +541,27 @@ it('relaunches running assignments after a restart with a recovery note', async 
   // The new Assignment's message says only what is new, as the Session holds the first; the launch's own pass delivers the
   // recovery note as it reads.
   expect(relays(`worker-${ticket.id}`)).toEqual([{ ticket_id: ticket.id, assignment: 2 }, { text: expect.stringContaining('host restarted') }])
+})
+
+it('stops automatic recovery after three host restarts without a report and reports failed to the main Session', async () => {
+  const { ticket } = await acceptedTicket()
+  for (let count = 1; count <= MAX_RECOVERIES; count++) {
+    runtime.executor.resume()
+    await runtime.pump()
+    await runtime.idle()
+    expect(runtime.store.tickets.get(ticket.id)!.recoveries).toBe(count)
+  }
+  runtime.executor.resume()
+  await runtime.pump()
+  await runtime.idle()
+  const failed = runtime.store.tickets.get(ticket.id)!
+  expect(failed.recoveries).toBeUndefined()
+  expect(failed.assignments).toHaveLength(MAX_RECOVERIES + 1)
+  expect(failed.assignments.at(-1)).toMatchObject({ state: 'running', report: { state: 'failed',
+    summary: expect.stringContaining(String(MAX_RECOVERIES + 1)) } })
+  expect(waitsForPerson(failed)).toBe(true)
+  const relay = relays(runtime.masterId).find(item => item.kind === 'worker_report' && item.state === 'failed')
+  expect(relay).toMatchObject({ kind: 'worker_report', state: 'failed', summary: expect.stringContaining(String(MAX_RECOVERIES + 1)) })
 })
 
 it('projects read models for the management page and removes thread subscriptions from the Web surface', async () => {
