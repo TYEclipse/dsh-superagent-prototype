@@ -19,7 +19,7 @@ import { WorktreeNameSchema } from '../app/assessment.ts'
 import { resultRelay } from '../app/notices.ts'
 import type { HealthEntry } from '../infra/health.ts'
 import { cancelled, collectJob, killJobs, runningJobs, stopBackground, stopSubagents, until, untilQuiet } from './background.ts'
-import { classifyFailure } from './failure.ts'
+import { classifyFailure, type FailureKind } from './failure.ts'
 
 const now = (): string => new Date().toISOString()
 /** Returns the worker session ID (`worker-<ticketId>`) for a ticket. */
@@ -30,6 +30,8 @@ export const ticketOfSession = (sessionId: string): string | undefined => sessio
 const PREPARE_TIMEOUT_MS = 10 * 60_000
 /** Maximum transient retry attempts for a launch or worker turn, and the initial backoff before resuming a turn. */
 const TRANSIENT_TRIES = 3, TRANSIENT_BACKOFF_MS = 15_000
+/** Retries of a failed prepare command after a passing failure; a retry runs only when the failed attempt left no directory. */
+const PREPARE_RETRIES = 2
 /** How long a worker's background work may run on after its turn ended before it is stopped and the worker reported waiting. */
 const BACKGROUND_LIMIT_MS = 30 * 60_000
 /** How long a host stop waits for the workers' background work to stop. */
@@ -40,9 +42,20 @@ const SLOT_WAIT_MS = 5000
 const fromPerson = (input?: TicketInput): boolean => input?.kind === 'trigger' ? !!input.human && !input.context : input?.kind === 'text'
 /**
  * Internal error thrown when a ticket's workspace prepare command fails during launch.
- * DshExecutor catches it to mark the ticket failed immediately rather than retrying automatically, because an existing directory counts as prepared and an automatic retry would treat whatever a failed prepare command left behind in the directory as a prepared workspace.
+ * DshExecutor retries it only when the failure is passing and the attempt left no directory: an existing directory counts
+ * as prepared, so a retry after a command that left files behind would start the worker in a partial workspace.
  */
-class PrepareFailed extends Error {}
+class PrepareFailed extends Error {
+  /**
+   * @param kind - the classified failure, reported when the command is not retried.
+   * @param retryable - whether a later launch may run the command again.
+   * @param stopped - whether an abort (the host stopping, or the ten-minute limit) ended the attempt; such an attempt is never retried.
+   * @param clean - whether the failed attempt left no directory, so running the command again is safe.
+   */
+  constructor(message: string, readonly kind: FailureKind, readonly retryable: boolean, readonly stopped: boolean, readonly clean: boolean) {
+    super(message)
+  }
+}
 /**
  * True when an error represents a failure a retry can pass: a network, rate-limit, overloaded or server
  * failure. Authentication, billing and context-length failures are classified as not retryable so the
@@ -50,6 +63,15 @@ class PrepareFailed extends Error {}
  */
 export function transient(error: unknown): boolean {
   return classifyFailure(error).retryable
+}
+/** Formats a failed prepare command for the Ticket report: its classification, how many attempts ran, and why none followed. */
+function prepareFailure(error: PrepareFailed, attempts: number): string {
+  const reason = error.stopped ? 'stopped' : error.kind
+  const count = attempts > 1 ? `, ${attempts} attempts` : ''
+  const left = !error.stopped && !error.clean
+    ? ' The command left files in the ticket directory, so it was not retried; remove them and retry.'
+    : ''
+  return `${error.message} (${reason}${count}).${left}`
 }
 /** Appends a stable 12-character ticket ID suffix to a validated English worktree name. */
 const ticketWorktreeName = (name: string, id: string): string => `${WorktreeNameSchema.parse(name)}-${id.slice(0, 12)}`
@@ -207,6 +229,8 @@ export class DshExecutor implements Executor {
   private readonly slots: WorkerSlots
   /** Transient failure counts tried so far: keyed by `assignment.id` for worker turns and `launch:<assignment.id>` for launches. */
   private readonly transient = new Map<string, number>()
+  /** Failures of each Assignment's prepare command so far, which bound the retries and are reported with the final failure. */
+  private readonly prepares = new Map<string, number>()
   /** Assignment IDs currently waiting on a transient-failure backoff timer before resuming their worker turn. */
   private readonly resuming = new Set<string>()
   /**
@@ -239,8 +263,9 @@ export class DshExecutor implements Executor {
   /**
    * Runs the configured `executor.prepare` command for a new ticket workspace in its parent directory with the ticket's
    * execution environment variables, then verifies the directory as the worker sees it.
-   * A failed prepare command throws `PrepareFailed`, which is not retried automatically; an empty directory it left is removed, a non-empty one kept.
-   * @throws PrepareFailed with the command's output when the prepare command fails.
+   * A failed prepare command throws `PrepareFailed`; an empty directory it left is removed, a non-empty one kept. The
+   * failure says whether a later launch may try again: only a passing failure whose attempt left no directory may.
+   * @throws PrepareFailed with the command's output and classification when the prepare command fails.
    */
   private async prepareDirectory(ticket: Ticket): Promise<void> {
     const directory = ticket.execution?.directory ?? ''
@@ -251,9 +276,12 @@ export class DshExecutor implements Executor {
     const signal = AbortSignal.any([this.host.lifetime, AbortSignal.timeout(PREPARE_TIMEOUT_MS)])
     if (command) await runAsWorker(this.host.context.subprocess, ['sh', '-c', command], dirname(directory), signal, env)
       .catch(async (error: unknown) => {
-        // Remove an empty directory left by a failed prepare command so a later retry does not treat it as already prepared.
-        await rmdir(directory).catch(() => { /* Absent, or holding what the command wrote, which the output explains. */ })
-        throw new PrepareFailed(redactSecrets(`The prepare command failed: ${error instanceof Error ? error.message : String(error)}`))
+        // Remove an empty directory left by a failed prepare command so a later attempt does not treat it as already prepared.
+        // An absent directory is clean too; a non-empty one is what the command wrote and must not be mistaken for a workspace.
+        const clean = await rmdir(directory).then(() => true, (failure: NodeJS.ErrnoException) => failure.code === 'ENOENT')
+        const failure = classifyFailure(error)
+        throw new PrepareFailed(redactSecrets(`The prepare command failed: ${error instanceof Error ? error.message : String(error)}`),
+          failure.kind, failure.retryable && clean && !signal.aborted, signal.aborted, clean)
       })
     await mkdir(directory, { recursive: true })
     await verifyDirectory(directory, this.host.context.subprocess, this.host.lifetime)
@@ -270,14 +298,24 @@ export class DshExecutor implements Executor {
     const assignment = ticket && latestAssignment(ticket)
     if (!ticket || !liveTicket(ticket) || assignment?.id !== assignmentId || assignment.state !== 'pending') return
     this.slots.reserve(ticketId, 'launch')
-    try { await this.launch(ticket, assignment); this.transient.delete(`launch:${assignmentId}`) }
-    catch (error) {
+    try {
+      await this.launch(ticket, assignment)
+      this.transient.delete(`launch:${assignmentId}`)
+      this.prepares.delete(assignmentId)
+    } catch (error) {
       // Shutdown or pause re-queues the launch for resume, and transient network/provider errors retry with backoff.
-      // A failed prepare command is not retried automatically because an existing directory counts as prepared, so retrying
-      // would treat whatever a failed prepare command left behind in the directory as a prepared workspace; instead the
-      // ticket is marked failed and waits until new human input or an explicit retry arrives.
+      // A prepare command is retried only when its failure is passing and it left no directory: an existing directory
+      // counts as prepared, so a retry after a command that left files behind would use a partial workspace. Any other
+      // failure marks the ticket failed until new human input or an explicit retry arrives.
       if (this.host.closing() || error instanceof Later) throw error
-      if (!(error instanceof PrepareFailed) && this.retries(`launch:${assignmentId}`, error)) throw error
+      if (error instanceof PrepareFailed) {
+        const attempts = (this.prepares.get(assignmentId) ?? 0) + 1
+        if (error.retryable && attempts <= PREPARE_RETRIES) { this.prepares.set(assignmentId, attempts); throw error }
+        this.prepares.delete(assignmentId)
+        this.launchFailed(ticketId, assignmentId, prepareFailure(error, attempts))
+        return
+      }
+      if (this.retries(`launch:${assignmentId}`, error)) throw error
       this.launchFailed(ticketId, assignmentId, error)
     } finally { this.slots.free(ticketId) }
   }
@@ -353,7 +391,7 @@ export class DshExecutor implements Executor {
    * report with no Input delivered since, and stops its shell jobs and subagents, including jobs it left to a person.
    */
   stop(ticket: Ticket, assignment: Assignment, reason: string): void {
-    this.transient.delete(assignment.id); this.transient.delete(`launch:${assignment.id}`)
+    this.transient.delete(assignment.id); this.transient.delete(`launch:${assignment.id}`); this.prepares.delete(assignment.id)
     const report = assignment.report
     const busy = !!assignment.deliveredAt && !!report && assignment.deliveredAt >= report.at
     const ownTurn = (report?.state === 'ready' || report?.state === 'dropped') && !busy

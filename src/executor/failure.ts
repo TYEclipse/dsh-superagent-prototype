@@ -16,7 +16,7 @@ export interface Failure {
   retryAfterMs?: number
 }
 
-const NETWORK = /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EPIPE|UND_ERR|socket hang up|fetch failed|network error|connection reset|connection refused|timed out|timeout/i
+const NETWORK = /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|EPIPE|UND_ERR|socket hang up|fetch failed|network error|network is unreachable|connection reset|connection was reset|connection refused|could not resolve host|temporary failure in name resolution|failed to connect to .* port|could not connect to server|remote end hung up|early eof|timed out|timeout/i
 const RATE_LIMIT = /rate limit|too many requests|slow down|throttl|\b429\b/i
 const OVERLOADED = /overloaded|at capacity|server is busy|temporarily unavailable/i
 const SERVER = /internal server error|bad gateway|service unavailable|gateway timeout|\b50[0-4]\b/i

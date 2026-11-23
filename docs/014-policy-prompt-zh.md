@@ -1,8 +1,8 @@
-# 013 Policy and admission prompts, Chinese
+# 014 Policy and admission prompts, Chinese
 
 > **语言说明.** 本仓库其余文档用英文；这一篇用中文，因为交付物是一段给中文团队用的提示词。第 5 节是成品，其余各节是它的依据、诊断与取舍记录。
 
-The acceptance rules are the part of the Policy that lets the agent take proactive work. Their prompt surface has three parts: `runtime/admission` (the main Session's assessment instructions), `runtime/policy` and `runtime/policy/none` (the generated Policy section), and the default rule instructions in `src/policy.ts`. This document records a Chinese rewrite grounded in published practice, and makes it the built-in default. It refines the literal v6 translation of these parts and translates the two default rules; the other parts and skills are covered by [012](012-built-in-prompts-zh.md).
+The acceptance rules are the part of the Policy that lets the agent take proactive work. Their prompt surface has three parts: `runtime/admission` (the main Session's assessment instructions), `runtime/policy` and `runtime/policy/none` (the generated Policy section), and the default rule instructions in `src/policy.ts`. This document records a Chinese rewrite grounded in published practice, and makes it the built-in default. It refines the literal v6 translation of these parts and translates the two default rules; the other parts and skills are covered by [013](013-built-in-prompts-zh.md).
 
 ## 1. 结论
 
@@ -37,7 +37,7 @@ The acceptance rules are the part of the Policy that lets the agent take proacti
 
 ## 3. 现版诊断
 
-v6（[012](012-built-in-prompts-zh.md)）把 `runtime/admission` 逐行译成中文，并把 Policy 头也译成中文；判据都在，问题在决策顺序与规则语义：
+v6（[013](013-built-in-prompts-zh.md)）把 `runtime/admission` 逐行译成中文，并把 Policy 头也译成中文；判据都在，问题在决策顺序与规则语义：
 
 | # | 症状 | 位置 | 后果 |
 | --- | --- | --- | --- |
