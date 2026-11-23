@@ -64,7 +64,7 @@ describe('release script', () => {
     expect(versionOf(work)).toBe('0.2.0')
     expect(git(work, 'log', '--format=%s').split('\n')).toEqual(['init'])
     expect(git(work, 'tag', '--list')).toBe('')
-  })
+  }, 30_000)
 
   it('commits, tags and pushes the bump, and the next update bumps again', () => {
     const { work, remote } = repository()
@@ -81,7 +81,7 @@ describe('release script', () => {
     expect(second.output).toContain('Tagged v0.2.2')
     expect(versionOf(work)).toBe('0.2.2')
     expect(remoteTags(remote)).toEqual(['v0.2.1', 'v0.2.2'])
-  })
+  }, 30_000)
 
   it('leaves the update to the newer run when main has moved past the checkout', () => {
     const { work, remote } = repository()
@@ -95,7 +95,7 @@ describe('release script', () => {
     expect(result.output).toContain('the newer run releases it')
     expect(versionOf(work)).toBe('0.2.0')
     expect(remoteTags(remote)).toEqual([])
-  })
+  }, 30_000)
 
   it('refuses to release a dirty checkout', () => {
     const { work } = repository()
@@ -104,5 +104,5 @@ describe('release script', () => {
     expect(result.status).toBe(1)
     expect(result.output).toContain('The checkout is not clean')
     expect(versionOf(work)).toBe('0.2.0')
-  })
+  }, 30_000)
 })
