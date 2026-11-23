@@ -305,6 +305,11 @@ export interface Ticket {
   execution?: Execution
   /** The latest failed delivery of an Input to its worker, until a delivery succeeds. */
   delivery?: { error: string; at: string }
+  /**
+   * Consecutive host restarts that interrupted this ticket while its worker had no report since the previous restart.
+   * A worker report, a person's retry or a resumed ticket clears it; after three it is not restarted automatically.
+   */
+  recoveries?: number
 }
 /**
  * A Thread a ticket follows, by its key: `own` when the ticket opened it, such as its own pull request, and when and how it

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Engine, MemoryRepositories, UserError, followupOwners, key, runningAssignment, ticketOutcome, ticketStage,
+import { Engine, MemoryRepositories, UserError, canRetry, followupOwners, key, runningAssignment, ticketOutcome, ticketStage,
   waitsForPerson } from '../src/core/index.ts'
+import { MAX_RECOVERIES } from '../src/core/assignments.ts'
 import type { Assessor, Assignment, Candidate, EngineOptions, Executor, OutboundMessage, Outcome, Policy, Ticket, Trigger } from '../src/core/index.ts'
 
 const member = { source: 'chat', id: 'alice' }
@@ -729,6 +730,45 @@ describe('interrupted assignments', () => {
     expect(running.deliveredAt! > running.report!.at).toBe(true)
     h.engine.assignmentInterrupted(other, running.id)
     expect(h.repo.tickets.get(other)!.assignments.map(item => item.state)).toEqual(['ended', 'pending'])
+  })
+  it('stops restarting after three host restarts without a report and leaves the failed ticket for a person to retry', () => {
+    const h = harness()
+    const ticketId = accepted(h).ticketId!
+    vi.mocked(h.executor.start).mockClear()
+    /** Mark the pending Assignment the last restart queued as running, as its launch does. */
+    const startNext = () => h.engine.assignmentStarted(ticketId, h.repo.tickets.get(ticketId)!.assignments.at(-1)!.id)
+    /** Interrupt the ticket's running Assignment, as the Executor does when the host starts. */
+    const interrupt = () => {
+      const running = runningAssignment(h.repo.tickets.get(ticketId)!)!
+      return h.engine.assignmentInterrupted(ticketId, running.id)
+    }
+    for (let count = 1; count <= MAX_RECOVERIES; count++) {
+      expect(interrupt()).toBeUndefined()
+      expect(h.repo.tickets.get(ticketId)!.recoveries).toBe(count)
+      startNext()
+    }
+    const failed = interrupt()
+    const ticket = h.repo.tickets.get(ticketId)!
+    expect(failed?.id).toBe(ticket.id)
+    expect(ticket.recoveries).toBeUndefined()
+    expect(ticket.assignments).toHaveLength(MAX_RECOVERIES + 1)
+    expect(ticket.assignments.at(-1)).toMatchObject({ state: 'running', report: { state: 'failed',
+      summary: expect.stringContaining(String(MAX_RECOVERIES + 1)) } })
+    expect(ticketStage(ticket)).toEqual({ stage: 'person', action: 'failed' })
+    expect(canRetry(ticket)).toBe(true)
+    // The failed Assignment is not replaced: a person's message can continue it, and a retry replaces it.
+    expect(runningAssignment(ticket)!.id).toBe(ticket.assignments.at(-1)!.id)
+    expect(h.executor.start).toHaveBeenCalledTimes(MAX_RECOVERIES)
+  })
+  it('clears the restart count on a worker report', () => {
+    const h = harness()
+    const ticketId = accepted(h).ticketId!
+    h.engine.assignmentInterrupted(ticketId, runningAssignment(h.repo.tickets.get(ticketId)!)!.id)
+    h.engine.assignmentStarted(ticketId, h.repo.tickets.get(ticketId)!.assignments.at(-1)!.id)
+    h.engine.report(ticketId, { state: 'progress', summary: 'halfway' })
+    expect(h.repo.tickets.get(ticketId)!.recoveries).toBeUndefined()
+    h.engine.assignmentInterrupted(ticketId, runningAssignment(h.repo.tickets.get(ticketId)!)!.id)
+    expect(h.repo.tickets.get(ticketId)!.recoveries).toBe(1)
   })
 })
 describe('pause', () => {

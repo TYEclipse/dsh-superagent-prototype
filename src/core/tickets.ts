@@ -169,6 +169,8 @@ export class Tickets extends EnginePart {
     const ticket = this.require(ticketId)
     const latest = latestAssignment(ticket)
     if (!canRetry(ticket) || !latest) throw new UserError('notRetryable')
+    // A person's retry is a fresh attempt: the next host restart starts a fresh recovery budget.
+    delete ticket.recoveries
     this.endAssignment(ticket, latest, 'retried')
     this.requeueUntaken(ticket, latest)
     const assignment = this.newAssignment(ticket)
@@ -260,6 +262,8 @@ export class Tickets extends EnginePart {
     if (first?.kind !== 'trigger') return
     const at = this.now()
     delete ticket.ended; ticket.updatedAt = at
+    // A resumed ticket is a fresh attempt: the next host restart starts a fresh recovery budget.
+    delete ticket.recoveries
     const assignment = this.newAssignment(ticket)
     // Prepend the resumed marker so it is delivered ahead of the waiting messages.
     const resumed: TicketInput = { id: key('input', ticket.id, 'resumed', first.triggerId), kind: 'resumed', triggerId: first.triggerId, at }

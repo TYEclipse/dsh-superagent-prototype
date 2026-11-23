@@ -100,6 +100,13 @@ by this fork; use the upstream repository for those.
   count once, a new turn starts a fresh window, and one turn sends at most
   three messages. The guard never denies a call or reports for the worker; it
   needs no schema, setting or prompt. See [015](docs/015-no-progress-guard-zh.md).
+- `feat(executor): bound automatic recovery from host restarts` — a Ticket
+  restarted three times in a row while its worker reported nothing is not
+  restarted a fourth time: the Assignment ends, a `failed` Report names the
+  restarts and reaches the main Session, and a person can Retry it. Any worker
+  Report, a person's retry or a resumed Ticket clears the count. The Ticket
+  carries the optional `recoveries` field in its JSON value, so no schema
+  migration is involved. See [016](docs/016-bounded-host-restart-zh.md).
 - `test(coverage): gate the suite with v8 coverage` — `@vitest/coverage-v8` is
   pinned to the Vitest version, and `pnpm test:coverage` writes `coverage/`
   (text, JSON summary and HTML). `pnpm check` now runs the suite under that gate

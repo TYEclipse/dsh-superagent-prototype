@@ -19,6 +19,12 @@ export interface WorkerReport {
   answers?: string
 }
 const RECOVERY_NOTE = 'The host restarted during this ticket. Inspect the current worktree, git history and GitHub state before continuing. Do not repeat an already completed external operation. Finish the original assignment and report its status.'
+/**
+ * How many consecutive host restarts a ticket may recover from while its worker reports nothing. The next restart fails
+ * the ticket instead of starting another assignment, so a restart loop reaches a person with a Retry action rather than
+ * burning tokens and worker slots forever. A report, a person's retry or a resumed ticket clears the count.
+ */
+export const MAX_RECOVERIES = 3
 
 /**
  * Assignments records what the Executor and its workers report about the Assignments that run tickets: one started, Inputs
@@ -78,17 +84,32 @@ export class Assignments extends EnginePart {
   /**
    * Handles a running assignment interrupted by a host restart: restarts it with a recovery note unless its latest report is
    * `waiting`, `ready`, `blocked`, or `failed` and no input was delivered after that report, in which case it keeps its
-   * session and flushes any waiting undelivered inputs.
+   * session and flushes any waiting undelivered inputs. After {@link MAX_RECOVERIES} restarts in a row without a worker
+   * report it stops restarting and records a `failed` report instead; a worker report clears the count.
+   * @returns The ticket when the restart limit failed it, undefined when it restarted or left the assignment alone.
    */
-  interrupted(ticketId: string, assignmentId: string): void {
+  interrupted(ticketId: string, assignmentId: string): Ticket | undefined {
     const ticket = this.running(ticketId, assignmentId)
     const running = ticket && runningAssignment(ticket)
-    if (!ticket || !running) return
+    if (!ticket || !running) return undefined
     const report = running.report
     const busy = !!running.deliveredAt && !!report && running.deliveredAt >= report.at
     const settled = !!report && ['waiting', 'ready', 'blocked', 'failed'].includes(report.state) && !busy
-    if (!settled) this.tickets.restart(ticket, running, 'hostRestarted', RECOVERY_NOTE)
-    else if (ticket.undelivered.length) this.options.executor.deliver(ticket, running)
+    if (settled) {
+      if (ticket.undelivered.length) this.options.executor.deliver(ticket, running)
+      return undefined
+    }
+    const count = (ticket.recoveries ?? 0) + 1
+    if (count > MAX_RECOVERIES) {
+      // Report first, while the assignment still runs: a normal failed report keeps the assignment open for a person's
+      // message, and Retry replaces it. No new assignment is created for the restart itself.
+      this.report(ticketId, { state: 'failed', summary: `The host restarted during this ticket ${count} times in a row without a `
+        + `worker report, so it is not restarted automatically any more. Check why the host restarts, then retry this ticket.` })
+      return this.require(ticketId)
+    }
+    ticket.recoveries = count
+    this.tickets.restart(ticket, running, 'hostRestarted', RECOVERY_NOTE)
+    return undefined
   }
   /**
    * Records a worker status report on an open ticket's current assignment, updating `attention`, `answers`, held automated
@@ -121,6 +142,8 @@ export class Assignments extends EnginePart {
     if (previous && previous.id !== attention?.id) this.replies.withdrawAttention(previous.id)
     assignment.report = { state: report.state, summary: report.summary, at }
     ticket.updatedAt = at
+    // A report is progress: a later host restart starts a fresh recovery budget.
+    delete ticket.recoveries
     if (report.answers && !ticket.answers?.includes(report.answers)) ticket.answers = [...ticket.answers ?? [], report.answers]
     if (report.answers) this.takeUp(ticketId, report.answers)
     if (report.state === 'blocked' || report.state === 'failed') ticket.undelivered = ticket.undelivered.filter(id => !automatic(ticket.inputs.find(input => input.id === id)))

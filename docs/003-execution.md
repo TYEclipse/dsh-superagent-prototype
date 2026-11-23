@@ -151,6 +151,8 @@ The Executor model applies only when a Session is created; an existing Session k
 
 Running Assignments end with "host restarted" and new ones start with a recovery note that tells the Executor to check its directory, git history and GitHub before repeating any outside action, oldest Ticket first.
 
+A Ticket restarted three times in a row while its worker reported nothing is not restarted again: its latest Assignment keeps a `failed` Report naming the number of restarts, and the main Session hears of it, so a person can check why the host restarts and retry the Ticket (or continue it with a message). Any worker Report, a person's retry or a resumed Ticket clears the count.
+
 Assignments that are waiting, ready, blocked or failed stay as they are, unless an Input reached them after that Report, in which case they start again too.
 
 Sessions, directories, Subscriptions, pending messages and the stored work below survive a restart, and so does the record of which messages each Executor Session took into its history, which a step does once it claimed them and before its model call: a message taken by a turn the restart cut off counts as read once a Report or the end of a turn follows, while one a step claimed but a cancel or error cut off before the history counts as unread.
