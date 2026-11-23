@@ -399,8 +399,8 @@ it.each(['orchestrator', 'worker'] as const)('keeps the %s within its character 
 it('keeps the routing rules in dispatch, which says the main Session may accept the rest of a stop message as new work', () => {
   const route = toolsOf('orchestrator').get('orchestrator_route')!.description
   const dispatch = surfaces.find(surface => surface.where === 'orchestrator prompt runtime/dispatch')!.text
-  expect(dispatch).toContain('you may accept the rest of the message as new work')
-  expect(dispatch).toContain('decide those whose card already settles them in one orchestrator_route call')
+  expect(dispatch).toContain('可以把消息的其余部分当作新的明确请求接单')
+  expect(dispatch).toContain('对卡片已经能定案的用一次 orchestrator_route 调用一起决定')
   expect(route).not.toMatch(/needs a new ticket on another explicit instruction/)
 })
 
