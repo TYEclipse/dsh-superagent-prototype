@@ -43,7 +43,9 @@ export interface PromptVersion { revision: number; previousRevision: number | nu
 export const defaultPrompts = (): PromptConfig => ({ ...teamDefaults, skills: {} })
 
 const ENVIRONMENT_HEADING = '执行环境（来自本安装的设置；优先于这些指令中提到的其他仓库或账号；空值表示此处未配置该项）。工单目录的准备命令读取同一组变量：'
-const POLICY_HEAD = '## Policy\n策略版本 {version}；接单模式 {mode}。接单模式与规则只决定主动候选：明确请求按 dispatch 段落路由，任何模式、任何规则下都一样。'
+const POLICY_HEAD = '## Policy\n策略版本 {version}；接单模式 {mode}。接单模式与规则只决定主动候选：明确请求按 dispatch 段落路由，任何模式、任何规则下都一样。\n'
+  + '规则正文写明可接什么、应忽略什么；也可以写明审阅人、流程或静默接单。主动接单时，命中的规则正文随工单交给执行器，主 Session 不另行改写。\n'
+  + '规则没有先后优先级；多条命中只接一单；规则冲突或范围不明确时不接单。'
 type Role = 'orchestrator' | 'worker'
 /** A built-in part a team may override: the roles that read it, its text, and the placeholders a template's override keeps. */
 interface BuiltInPart { roles: readonly Role[]; text: string; placeholders?: readonly string[] }
@@ -64,8 +66,8 @@ export const builtInParts = (): Readonly<Record<PartKey, BuiltInPart>> => parts 
   'runtime/handoff/orchestrator': { roles: MAIN, text: handoffPolicy('orchestrator') },
   'runtime/handoff/worker': { roles: WORKER, text: handoffPolicy('worker') },
   'runtime/environment': { roles: BOTH, text: `${ENVIRONMENT_HEADING}\n{variables}`, placeholders: ['{variables}'] },
-  'runtime/policy': { roles: MAIN, text: `${POLICY_HEAD} 已启用的规则，按名称和 id 列出：\n{rules}`, placeholders: ['{version}', '{mode}', '{rules}'] },
-  'runtime/policy/none': { roles: MAIN, text: `${POLICY_HEAD} 没有启用任何规则：主动候选只能被忽略。`,
+  'runtime/policy': { roles: MAIN, text: `${POLICY_HEAD}\n已启用的规则，按名称和 id 列出：\n{rules}`, placeholders: ['{version}', '{mode}', '{rules}'] },
+  'runtime/policy/none': { roles: MAIN, text: `${POLICY_HEAD}\n没有启用任何规则：主动候选只能被忽略。`,
     placeholders: ['{version}', '{mode}'] },
   'skill/feishu': { roles: BOTH, text: `${sourceSkills.feishu}\n\n## CLI usage\n${cliNotes}` },
   'skill/github': { roles: BOTH, text: `${sourceSkills.github}\n\n## CLI usage\n${cliNotes}` },

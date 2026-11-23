@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import { masterPrompt, workerPrompt } from '../src/app/context.ts'
-import { composePrompt, defaultPrompts } from '../src/app/prompts.ts'
+import { composePrompt, defaultPrompts, policySection } from '../src/app/prompts.ts'
+import { SettingsSchema } from '../src/policy.ts'
 import { bundledSkills, promptFile } from '../src/app/skill-files.ts'
 import { TICKET_STATES, decisionCard, decisionDetails, ticketCard, ticketDetails, triggerCard, threadCard } from '../src/app/cards.ts'
 import { key, said, type Decision, type Thread, type Ticket, type Trigger } from '../src/core/index.ts'
@@ -29,7 +30,7 @@ const RULES: [rule: string, file: string, says: string[], gone?: string[]][] = [
   ['An assessment judges every enabled rule and accepts only a settled, bounded change', 'admission',
     ['返回 rule_assessments 时，为每条启用规则恰好给一项',
       '说某规则不适用的理由不能成为正向匹配',
-      '只有同时满足以下条件才接受：确实请求了实现；target_basis 已指定或属于既有标准；没有未决的产品/设计决定',
+      '只有同时满足以下条件才接受：确实请求了实现；target_basis 已指定，或属于可客观成立的既有标准/正确状态；没有未决的产品/设计决定',
       '可以无需像素值或 CSS 指示而成立', '不确认、不派工、不建 worktree，也不发未经请求的澄清问题',
       '这个横幅和其他卡片不一样',
       '绝不重放旧消息，也不派发已失效的历史批准']],
@@ -107,6 +108,15 @@ it.each(RULES)('%s (%s)', (_rule, file, says, gone = []) => {
   const text = textOf(file)
   for (const words of says) expect(text).toContain(words)
   for (const words of gone) expect(text.toLowerCase()).not.toContain(words.toLowerCase())
+})
+
+it('states the rule semantics and the reviewer pass-through in the main Session\'s Policy section', () => {
+  const text = policySection(SettingsSchema.parse({}), defaultPrompts()).text
+  // A rule says what to accept and what to ignore, and may add a reviewer, a procedure or a silent accept.
+  expect(text).toContain('规则正文写明可接什么、应忽略什么；也可以写明审阅人、流程或静默接单。')
+  expect(text).toContain('命中的规则正文随工单交给执行器，主 Session 不另行改写。')
+  // Rules have no order; several matches accept one ticket; a conflict accepts none.
+  expect(text).toContain('规则没有先后优先级；多条命中只接一单；规则冲突或范围不明确时不接单。')
 })
 
 it('keeps each role\'s own instructions short', () => {
