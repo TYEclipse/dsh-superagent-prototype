@@ -90,6 +90,16 @@ by this fork; use the upstream repository for those.
   git and gh emit (`Could not resolve host`, `Failed to connect to … port`,
   `Connection was reset`, `The remote end hung up unexpectedly`, and
   `Temporary failure in name resolution`). See [012](docs/012-prepare-retry-zh.md).
+- `feat(executor): steer a repeating worker out of a no-progress loop` — a
+  worker or subagent Session's `tool/call` and `tool/result` events feed a
+  per-Session detector: the same call returning the same result three times
+  across steps, or the same call with identical arguments five times across
+  steps within the last ten calls, steers one short message into the Session
+  asking the model to change approach or report blocked. Only repeats after the
+  model saw the earlier result count, identical calls in one parallel step
+  count once, a new turn starts a fresh window, and one turn sends at most
+  three messages. The guard never denies a call or reports for the worker; it
+  needs no schema, setting or prompt. See [015](docs/015-no-progress-guard-zh.md).
 - `test(coverage): gate the suite with v8 coverage` — `@vitest/coverage-v8` is
   pinned to the Vitest version, and `pnpm test:coverage` writes `coverage/`
   (text, JSON summary and HTML). `pnpm check` now runs the suite under that gate

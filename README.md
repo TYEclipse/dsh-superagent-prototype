@@ -37,6 +37,7 @@ Read the numbered documents in order; each builds only on the ones before it.
 - [012 Prepare retry, Chinese](docs/012-prepare-retry-zh.md): the highest-value improvement found by the 2026-11-10 research, with the candidate comparison, external evidence and trade-offs
 - [013 Built-in prompts and skills, Chinese](docs/013-built-in-prompts-zh.md): the Chinese rewrite of the remaining built-in parts and both Source skills, with the evidence and trade-offs behind it
 - [014 Policy and admission prompts, Chinese](docs/014-policy-prompt-zh.md): the researched rewrite of the acceptance-rule prompt surface and the default rules, with the evidence and trade-offs behind it
+- [015 No-progress guard, Chinese](docs/015-no-progress-guard-zh.md): the highest-value improvement found by the 2026-11-24 research, with the candidate comparison, external evidence and trade-offs
 
 ## Development
 
