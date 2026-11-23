@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { bindScopeParent } from '@deepseek-ai/dsh-scope'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
 import { delimiter, join } from 'node:path'
@@ -78,8 +78,8 @@ async function receive(trigger: Trigger, target = runtime) {
 let services: Record<string, unknown>
 /** DSH's job registry the Runtime's Executor reads its workers' shell jobs from. */
 let jobs: ReturnType<typeof jobRegistry>
-/** What worker commands of the startup checks print, by argv; an Error makes the command fail with its message. */
-let answers: Record<string, string | Error>
+/** What worker commands of the startup checks print, by argv; an Error makes the command fail with its message, and an array answers one call at a time. */
+let answers: Record<string, string | Error | Array<string | Error>>
 /** Stand-in CLIs on disk, since setup finds executables before it runs them: the agent's, the merge account's and the Feishu bot's. */
 const AGENT = () => join(directory, 'agent-gh')
 const OTHER = () => join(directory, 'other-gh')
@@ -90,7 +90,8 @@ const subprocess = { spawn: vi.fn((spec: { argv: readonly string[]; env?: Record
   // Strip leading `env` and `KEY=VALUE` arguments before looking up the command response.
   const argv = [...spec.argv]
   while (argv[0] === 'env' || /^[A-Z_]+=/.test(argv[0] ?? '')) argv.shift()
-  const answer = answers[argv.join(' ')] ?? ''
+  const value = answers[argv.join(' ')]
+  const answer = Array.isArray(value) ? value.shift() ?? '' : value ?? ''
   const reader = (text: string) => ({ readFrom: () => ({ text, nextOffset: text.length, lossy: false }) })
   return { done: Promise.resolve({ exitCode: answer instanceof Error ? 1 : 0, signal: null }), collected: { stdout: reader(answer instanceof Error ? '' : answer), stderr: reader(answer instanceof Error ? answer.message : '') } }
 }) }
@@ -126,6 +127,11 @@ async function route(item: Record<string, unknown>): Promise<Record<string, unkn
   const { results } = await runTool(runtime.masterId, 'orchestrator_route', { decisions: [item] }) as { results: Record<string, unknown>[] }
   if (results[0]!.refused) throw new Error(String(results[0]!.refused))
   return results[0]!
+}
+/** Moves the faked clock to `now` and lets the runtime start what is due, without waiting out a backoff in real time. */
+async function advanceTo(now: number): Promise<void> {
+  vi.useFakeTimers({ toFake: ['Date'], now })
+  try { await runtime.pump(); await runtime.idle() } finally { vi.useRealTimers() }
 }
 async function acceptedTicket(trigger = feishu('1', '@bot 修一下回归')) {
   await receive(trigger)
@@ -1610,24 +1616,85 @@ it('runs a launch that fails for a passing reason again on the launch backoff th
     expect(runtime.store.tickets.get(ticket.id)!.assignments.at(-1)!.report).toMatchObject({ state: 'failed' })
     controller.resolveAgent.mockImplementation(original)
   }
-  // A prepare command whose output names a passing failure is not run again on its own.
+  // A prepare command whose output names a passing failure is retried twice on the launch backoff; its ticket then fails
+  // with the classification and attempt count.
   const runs = () => subprocess.spawn.mock.calls.filter(([spec]) => (spec as { argv: string[] }).argv[0] === 'sh').length
   runtime.store.saveSettings({ ...runtime.store.settings(), executor: { ...runtime.store.settings().executor, prepare: 'exit 3' } })
   answers['sh -c exit 3'] = new Error('fatal: unable to access: The requested URL returned error: 503')
-  const before = runs()
+  const before = runs(), started = Date.now()
   const prepared = await acceptedTicket(feishu('40', '@bot 修 prepare', { root_id: undefined }))
   await runtime.idle()
-  expect(runtime.store.tickets.get(prepared.ticket.id)!.assignments.at(-1)!.report).toMatchObject({ state: 'failed', summary: expect.stringContaining('503') })
   expect(runs()).toBe(before + 1)
-  // A retry runs the prepare command again, for the directory it left empty was removed; resuming relaunches no failed launch.
+  expect(runtime.store.tickets.get(prepared.ticket.id)!.assignments.at(-1)!.report).toBeUndefined()
+  await advanceTo(started + 10_000)
+  await advanceTo(started + 40_000)
+  expect(runs()).toBe(before + 3)
+  const report = runtime.store.tickets.get(prepared.ticket.id)!.assignments.at(-1)!.report
+  expect(report).toMatchObject({ state: 'failed', summary: expect.stringContaining('503') })
+  expect(report!.summary).toContain('server')
+  expect(report!.summary).toContain('3 attempts')
+  // A retry runs the prepare command again, for each failed attempt removed the directory it left empty; resuming relaunches no failed launch.
   delete answers['sh -c exit 3']
   runtime.executor.resume()
   await runtime.idle()
-  expect(runs()).toBe(before + 1)
+  expect(runs()).toBe(before + 3)
   runtime.engine.retryTicket(prepared.ticket.id)
   await runtime.idle()
-  expect(runs()).toBe(before + 2)
+  expect(runs()).toBe(before + 4)
   expect(runtime.store.tickets.get(prepared.ticket.id)!.assignments.at(-1)).toMatchObject({ state: 'running' })
+})
+
+it('retries a prepare command after a passing failure and starts the worker when a later attempt succeeds', async () => {
+  runtime.store.saveSettings({ ...runtime.store.settings(), executor: { ...runtime.store.settings().executor, prepare: 'exit 2' } })
+  answers['sh -c exit 2'] = [new Error('fatal: unable to access: The requested URL returned error: 503'),
+    new Error('fatal: unable to access: Could not resolve host: github.com'), '']
+  const runs = () => subprocess.spawn.mock.calls.filter(([spec]) => (spec as { argv: string[] }).argv[0] === 'sh').length
+  const before = runs(), started = Date.now()
+  const { ticket } = await acceptedTicket(feishu('41', '@bot 修 prepare retry', { root_id: undefined }))
+  await runtime.idle()
+  expect(runs()).toBe(before + 1)
+  await advanceTo(started + 10_000)
+  expect(runs()).toBe(before + 2)
+  expect(runtime.store.tickets.get(ticket.id)!.assignments.at(-1)!.report).toBeUndefined()
+  await advanceTo(started + 40_000)
+  expect(runs()).toBe(before + 3)
+  expect(runtime.store.tickets.get(ticket.id)!.assignments.at(-1)).toMatchObject({ state: 'running' })
+})
+
+it('does not retry a prepare command that fails for authentication and reports the failure kind', async () => {
+  runtime.store.saveSettings({ ...runtime.store.settings(), executor: { ...runtime.store.settings().executor, prepare: 'exit 4' } })
+  answers['sh -c exit 4'] = new Error('HTTP 401: Bad credentials')
+  const runs = () => subprocess.spawn.mock.calls.filter(([spec]) => (spec as { argv: string[] }).argv[0] === 'sh').length
+  const before = runs()
+  const { ticket } = await acceptedTicket(feishu('42', '@bot 修 prepare auth', { root_id: undefined }))
+  await runtime.idle()
+  expect(runs()).toBe(before + 1)
+  expect(runtime.store.tickets.get(ticket.id)!.assignments.at(-1)!.report).toMatchObject({ state: 'failed', summary: expect.stringContaining('(auth)') })
+})
+
+it('does not retry a prepare command that left files in the ticket directory', async () => {
+  runtime.store.saveSettings({ ...runtime.store.settings(), executor: { ...runtime.store.settings().executor, prepare: 'exit 5' } })
+  const runs = () => subprocess.spawn.mock.calls.filter(([spec]) => (spec as { argv: string[] }).argv[0] === 'sh').length
+  const original = subprocess.spawn.getMockImplementation()!
+  const reader = (text: string) => ({ readFrom: () => ({ text, nextOffset: text.length, lossy: false }) })
+  subprocess.spawn.mockImplementation(spec => {
+    if (spec.argv[0] === 'sh' && spec.env?.DSH_SUPERAGENT_DIR) {
+      mkdirSync(spec.env.DSH_SUPERAGENT_DIR, { recursive: true })
+      writeFileSync(join(spec.env.DSH_SUPERAGENT_DIR, 'partial'), 'x')
+      return { done: Promise.resolve({ exitCode: 1, signal: null }),
+        collected: { stdout: reader(''), stderr: reader('fatal: unable to access: The requested URL returned error: 503') } }
+    }
+    return original(spec)
+  })
+  try {
+    const before = runs()
+    const { ticket } = await acceptedTicket(feishu('43', '@bot 修 prepare dirty', { root_id: undefined }))
+    await runtime.idle()
+    expect(runs()).toBe(before + 1)
+    const summary = runtime.store.tickets.get(ticket.id)!.assignments.at(-1)!.report!.summary
+    expect(summary).toContain('server')
+    expect(summary).toContain('left files')
+  } finally { subprocess.spawn.mockImplementation(original) }
 })
 
 it('launches a queued Assignment once when the host resumes, and gives a failed launch\'s slot back', async () => {

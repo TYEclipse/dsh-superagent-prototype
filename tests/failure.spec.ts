@@ -11,6 +11,14 @@ describe('failure classification', () => {
     expect(classifyFailure(Object.assign(new Error('request timeout'), { status: 408 })).kind).toBe('network')
   })
 
+  it('recognizes the transport failures git and gh report for a prepare command', () => {
+    expect(classifyFailure(new Error("fatal: unable to access 'https://github.com/acme/widgets': Could not resolve host: github.com")).kind).toBe('network')
+    expect(classifyFailure(new Error('ssh: Could not resolve hostname github.com: Temporary failure in name resolution')).kind).toBe('network')
+    expect(classifyFailure(new Error('Failed to connect to github.com port 443 after 21000 ms: Could not connect to server')).kind).toBe('network')
+    expect(classifyFailure(new Error('error: RPC failed; curl 56 Recv failure: Connection was reset')).kind).toBe('network')
+    expect(classifyFailure(new Error('fatal: The remote end hung up unexpectedly')).kind).toBe('network')
+  })
+
   it('does not retry failures a person must resolve', () => {
     expect(classifyFailure(Object.assign(new Error('nope'), { status: 401 }))).toEqual({ kind: 'auth', retryable: false })
     expect(classifyFailure(new Error('context length exceeded')).kind).toBe('context')
