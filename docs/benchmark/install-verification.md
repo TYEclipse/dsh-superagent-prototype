@@ -10,6 +10,23 @@ that the plugin loads and serves its panel. This file records the runs used by t
 
 | | |
 | --- | --- |
+| Date | 2026-11-24 02:13 CST (2026-11-23T18:13Z) |
+| Host | Windows 11, Node.js 24.13.0, pnpm 11.7.0 |
+| DSH | `@deepseek-ai/dsh` **0.2.2-rc.1** (local install at `C:\Users\tyecl\.dsh\state\superagent-desktop\work\.tools\dsh-0.2.2-rc.1`) |
+| Checkout | commit `2be2cb788f8b889c06a6f60184325c5c720bbb71` |
+| Command | `node scripts/verify-install.mjs --dsh <…>/node_modules/@deepseek-ai/dsh/lib/bin.js --receipt .artifacts/self-improve-install-verification.json` |
+| Result | **exit 0 — 13/13 checks passed** |
+| Receipt | `.artifacts/self-improve-install-verification.json` |
+
+This run covers the no-progress guard: the built bundle links into a throwaway profile, the plugin loads, and
+the management API and presets answer. A fresh profile starts no worker turn, so the run does not exercise a tool
+loop; `tests/runtime.spec.ts` does, by feeding a worker Session three identical `tool/call` / `tool/result` pairs
+and asserting the single steering message.
+
+## Round 6 run (prior branch)
+
+| | |
+| --- | --- |
 | Date | 2026-11-09 21:11 CST (2026-11-09T13:11Z) |
 | Host | Windows 11, Node.js 24.13.0, pnpm 11.7.0 |
 | DSH | `@deepseek-ai/dsh` **0.2.2-rc.1** (local install at `C:\Users\tyecl\.dsh\state\superagent-desktop\work\.tools\dsh-0.2.2-rc.1`) |
@@ -18,10 +35,10 @@ that the plugin loads and serves its panel. This file records the runs used by t
 | Result | **exit 0 — 13/13 checks passed** |
 | Receipt | `.artifacts/ticket-install-verification.json` |
 
-The branch also removes the two startup failures a *configured* Windows profile would hit: the main Session's tool
+That branch also removed the two startup failures a *configured* Windows profile would hit: the main Session's tool
 restriction named `bash`, which DSH disables on Windows (the shell there is `pwsh`), and setup probes relied on a
-POSIX `env` wrapper whose MSYS build rewrites leading-slash arguments. The fresh-profile checks above do not
-configure setup, so they do not exercise the first; `pnpm test` covers both seams (1,235 passed, 42 skipped).
+POSIX `env` wrapper whose MSYS build rewrites leading-slash arguments. Its fresh-profile checks did not
+configure setup, so they did not exercise the first; `pnpm test` covered both seams (1,235 passed, 42 skipped).
 
 ## Round 4 run (PR #5)
 
