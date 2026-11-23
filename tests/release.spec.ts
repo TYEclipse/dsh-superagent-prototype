@@ -41,8 +41,14 @@ const remoteTags = (remote: string): string[] => {
 }
 
 const release = (...args: string[]): { status: number; output: string } => {
+  // The script only releases GITHUB_SHA when that CI variable is set, so the throwaway repository
+  // must not inherit the runner's value.
+  const env = { ...process.env }
+  delete env.GITHUB_SHA
+  delete env.GH_TOKEN
+  delete env.GITHUB_TOKEN
   try {
-    return { status: 0, output: execFileSync(process.execPath, [join(ROOT, 'scripts', 'release.mjs'), ...args], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }
+    return { status: 0, output: execFileSync(process.execPath, [join(ROOT, 'scripts', 'release.mjs'), ...args], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env }) }
   } catch (error) {
     const failure = error as { status?: number; stdout?: string; stderr?: string }
     return { status: failure.status ?? 1, output: `${String(failure.stdout ?? '')}${String(failure.stderr ?? '')}` }
