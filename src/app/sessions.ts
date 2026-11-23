@@ -3,11 +3,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { MessageId } from '@deepseek-ai/dsh-llm'
 import { scopeParentOf } from '@deepseek-ai/dsh-scope'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import { dirname } from 'node:path'
 import { z } from 'zod'
 import { key, liveTicket, type Ticket } from '../core/index.ts'
 import { mandateInstructions, ticketOfSession } from '../executor/dsh.ts'
+import { Repetition } from '../executor/repetition.ts'
 import type { HealthEntry } from '../infra/health.ts'
 import { AgentDelivery, messageId } from './delivery.ts'
 import type { Effects } from './effects.ts'
@@ -110,6 +111,8 @@ export class Sessions {
   /** Decorated agents mapped to their registered disposers and skill scope until the agent is disposed or `Sessions.dispose()` runs. */
   private readonly bindings = new Map<Agent, SessionBinding>()
   private readonly retryHealth = new RetryHealth()
+  /** One detector of no-progress tool calls per worker or subagent Session, by Session id. */
+  private readonly repetitions = new Map<string, Repetition>()
   private readonly ctx: Context
   /** Registers ordered `relay` and `notice` effect handlers that deliver to the main Session. */
   constructor(private readonly host: SessionsHost) {
@@ -129,9 +132,12 @@ export class Sessions {
     ctx.on('session/event', (session, event) => {
       const agent = ctx.agents.get(session.id)
       const binding = agent && agent.session === session ? this.bindings.get(agent) : undefined
-      if (!agent || !binding || binding.subagent) return
-      this.retryHealth.observe(agent.id, event)
-      this.updateModelHealth()
+      if (!agent || !binding) return
+      if (!binding.subagent) {
+        this.retryHealth.observe(agent.id, event)
+        this.updateModelHealth()
+      }
+      this.observeRepetition(agent, event)
     })
     ctx.on('agent/created', async ({ agent }) => { await this.decorate(agent); return undefined })
     // Opening a Session in DSH's Web UI before its first turn may select the default preset for it: select ours again. After
@@ -147,6 +153,23 @@ export class Sessions {
     })
     ctx.on('agent/status', ({ agent, status }) => {
       if (status === 'idle' && !this.host.closing()) { this.retryHealth.clear(agent.id); this.updateModelHealth() }
+    })
+  }
+  /**
+   * Feeds a worker's or a subagent's session events into its repetition detector, and steers one no-progress message
+   * into the Session when it repeats a call or a result. The main Session is not tracked: its tools are read-only and
+   * candidates, not tool loops, bound its work. A signal whose Session already went idle is dropped, because the loop
+   * it describes has ended; the worker's own report still decides the Ticket.
+   */
+  private observeRepetition(agent: Agent, event: SessionEvent): void {
+    if (agent.id === this.host.masterId) return
+    if (event.type !== 'turn/start' && event.type !== 'tool/call' && event.type !== 'tool/result') return
+    const repetition = this.repetitions.get(agent.id) ?? new Repetition()
+    this.repetitions.set(agent.id, repetition)
+    const signal = repetition.observe(event)
+    if (!signal || agent.status !== 'running') return
+    void this.prompt(agent.id, signal.id, signal.text, 'steer').catch((error: unknown) => {
+      this.ctx.logger.warn('dsh-superagent could not steer a repeating Session: %s', String(error))
     })
   }
   /** Resolves or creates session `id` in workspace `cwd`, initializes its role model, decorates it with prompts/skills/tools, sets `danger-full-access` permissions, and renames it to `title`. */
@@ -357,6 +380,7 @@ export class Sessions {
   }
   /** Releases registrations for `agent` in reverse order (LIFO); disposing its skill scope releases its skills as well. */
   private release(agent: Agent): void {
+    this.repetitions.delete(agent.id)
     const binding = this.bindings.get(agent)
     if (!binding) return
     this.bindings.delete(agent)

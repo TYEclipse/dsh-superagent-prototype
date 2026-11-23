@@ -1761,6 +1761,30 @@ it('creates an Executor Session under the bundle\'s worker preset, and the main 
   expect(created.find(options => options.sessionId === runtime.masterId)).toMatchObject({ agentPreset: 'dsh-superagent-router' })
 })
 
+it('steers a worker that repeats the same tool call and result, once per turn', async () => {
+  const { sessionId } = await acceptedTicket()
+  const agent = agents.get(sessionId)! as unknown as { status: string; session: object }
+  agent.status = 'running'
+  const emit = (event: object) => (runtime as unknown as { ctx: Context }).ctx.emit('session/event', agent.session as never, event as never)
+  const call = (id: string, step: number, turn = 1) => ({ type: 'tool/call', data: { turn, step, callId: id, name: 'bash', arguments: '{"command":"pnpm test"}' } })
+  const result = (id: string, step: number, turn = 1) => ({ type: 'tool/result', data: { turn, step, message: { toolCallId: id, content: [{ type: 'text', text: '1 test failed' }] } } })
+  const nudges = () => deliveries.mock.calls.map(([delivery]) => delivery)
+    .filter(delivery => delivery.sessionId === sessionId && delivery.text.includes('No progress'))
+  emit({ type: 'turn/start', data: { turn: 1 } })
+  for (let step = 1; step <= 3; step++) { emit(call(`c${step}`, step)); emit(result(`c${step}`, step)) }
+  await vi.waitFor(() => expect(nudges()).toHaveLength(1))
+  expect(nudges()[0]).toMatchObject({ mode: 'steer' })
+  // A further identical result in the same turn is not a second message.
+  emit(call('c4', 4)); emit(result('c4', 4))
+  await Promise.resolve()
+  expect(nudges()).toHaveLength(1)
+  // A new turn has its own window and its own message id.
+  emit({ type: 'turn/start', data: { turn: 2 } })
+  for (let step = 1; step <= 3; step++) { emit(call(`d${step}`, step, 2)); emit(result(`d${step}`, step, 2)) }
+  await vi.waitFor(() => expect(nudges()).toHaveLength(2))
+  expect(nudges()[1]!.id).not.toBe(nudges()[0]!.id)
+})
+
 it('selects its own preset again for a main Session or worker a person switched before its first turn, and not after it', async () => {
   const { sessionId } = await acceptedTicket()
   // DSH's preset registry, which takes a selection only before a Session's first turn.

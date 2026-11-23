@@ -355,6 +355,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/app/views/overview.ts` | The overview: Tickets that need a person, problems, the last day's flow and the Executor's load |
 | `src/executor/dsh.ts` | The DshExecutor, `WorkerSlots`, `ticketExecution`, `inputMessage` and `mandateInstructions` |
 | `src/executor/failure.ts` | `classifyFailure`: an Executor failure's kind, whether a retry can pass it, its provider `retry-after` hint, and the transport wording of git and gh |
+| `src/executor/repetition.ts` | `Repetition`: detects a worker's repeated tool call or repeated tool result from its session events, and returns the one steering message to send per repeated call and turn |
 | `src/executor/background.ts` | A worker's background work in DeepSeek Harness, the shell jobs its Session owns (`ctx.jobs`) and its subagents (`ctx.subagents`): `runningJobs`, `untilQuiet`, `killJobs`, `collectJobs`, `stopSubagents`, `stopBackground`, `until`, and `cancelled`, the workers whose turn a stop of their subagents cancelled |
 | `src/infra/commands.ts` | `Commands`, the CLI transport: `run`; `api` and `pages`, limited to the configured repository and validated; `lark` as the bot; `git`. `CliError` carries the code a command's output reports, such as a GitHub HTTP status, and a command that prints nothing fails with how it ended, never with its arguments; `validItems` skips and counts the malformed items of a list |
 | `src/infra/redact.ts` | `redactSecrets`: masks GitHub, bearer, basic, API-key and cookie credentials, URL and query credentials, AWS keys and private-key blocks in subprocess output, keeping a short visible hint; pure and idempotent |
@@ -421,6 +422,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/bundle-patch.spec.ts` | The bundle's patch, read as DeepSeek Harness reads it, and the agent preset of Executor Sessions it defines |
 | `tests/effects.spec.ts` | The effect queue: coalescing, limits, retries with backoff, health and shutdown |
 | `tests/failure.spec.ts` | Executor failure classification: retryable network/rate-limit/overload/server failures, the git/gh transport wording of a prepare command, terminal auth/budget/context failures, and `retry-after` hints |
+| `tests/repetition.spec.ts` | The no-progress detector: repeated results and repeated calls across steps, parallel batches, canonical arguments and results, per-turn resets and the nudge budget |
 | `tests/architecture.spec.ts` | Architecture fitness functions: relative imports resolve, the core stays free of outside imports, Sources do not import the application, and the panel imports only `src/app/api.ts` values |
 | `tests/doctor.spec.ts` | The doctor script: ordered checks against a throwaway repository and a fake dsh, engine-range failures, an unbuilt bundle, a stale build, a mismatched install receipt, and `--fix` creating a missing state directory |
 | `tests/memory.spec.ts` | Project memory: recording a finished Ticket once, bounding notes, the character budget of the rendered section, and the worker-only Project memory prompt section |

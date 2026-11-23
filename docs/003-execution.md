@@ -40,6 +40,12 @@ At handoff, subagents stop. Shell jobs, such as a server offered for review, may
 
 A person can also start a turn by writing directly in the Executor Session. Its background work follows the same rules.
 
+### No-progress guard
+
+The Executor observes each worker's and subagent's session events for tool calls and their results. When the same call returns the same result three times across steps, or the same call with identical arguments is made five times across steps within the last ten calls, it steers one message into that Session: the call is repeating without progress, so change the approach, or report blocked or progress with what is blocking it. Only calls whose earlier result the Session's model already saw count; identical calls issued together in one step count once, because a parallel batch cannot have seen its own results. A new turn starts a fresh window, each repeated call gets one message per turn, and one turn sends at most three.
+
+The guard never denies a call, ends a turn or reports for the worker: it adds information to the Session, and the worker's own report still decides the Ticket. It reads the same session events that model-retry health uses and needs no schema, setting or prompt. The main Session is not tracked; its tools are read-only.
+
 When an Assignment ends, its shell jobs are killed without waking the Session. Its subagents are released, and any completion turns they wake are dropped. The replacement Assignment and its waiting Inputs start after that shutdown finishes.
 
 Stopping or restarting the plugin inside the DeepSeek Harness process uses the same shutdown path. Inputs not yet taken into Session history are retained. Shutdown waits up to 10 seconds for each worker's background work; a process restart ends that work outright. An Assignment interrupted while busy restarts with a recovery note.
