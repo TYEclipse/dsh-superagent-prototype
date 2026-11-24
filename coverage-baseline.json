@@ -8,6 +8,14 @@
       "branches": 85.68,
       "functions": 93.08,
       "lines": 96.22
+    },
+    "linux-x64": {
+      "recordedAt": "2026-11-24T15:26:09.783Z",
+      "commit": "4b9bed2",
+      "statements": 94.62,
+      "branches": 86.65,
+      "functions": 93.89,
+      "lines": 97.56
     }
   }
 }

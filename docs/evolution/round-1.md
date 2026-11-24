@@ -107,14 +107,15 @@
 - 改动后 `pnpm check`：exit 0；1,270 passed / 42 skipped；覆盖率 93.13 / 85.68 / 93.08 / 96.22；`coverage ratchet: ok`；`lib/index.js` 468.58 kB。
 - `node scripts/verify-install.mjs --dsh C:/Users/tyecl/.dsh/state/superagent-desktop/work/.tools/dsh-0.2.2-rc.1/node_modules/@deepseek-ai/dsh/lib/bin.js --receipt .artifacts/install-verification.json`：13/13 项通过（DSH 0.2.2-rc.1，一次性 profile，面板 API 200、setup `repositoryUnset`、数据库与两个 preset 均就位）；receipt 的代码提交是 `b3d0540`，之后的文档提交不改变 bundle。
 - `tests/docs.spec.ts`、`tests/class-docs.spec.ts`、`tests/model-surface.spec.ts`：随全套通过。
-- PR CI、release、部署重载：见 §8 的对账（合并后补齐）。
+- PR CI（run `45425138750`）：`check` pass（1m6s）。用该运行的 `coverage` artifact 记录 Linux 高水位：`94.62 / 86.65 / 93.89 / 97.56`（`coverage-baseline.json` 的 `linux-x64`）。
+- release、部署重载：见 §8 的对账（合并后补齐）。
 
-未验证：Linux 平台的覆盖率数字尚未进入基线；第一次 Linux CI 会以「该平台暂无基线」提示通过，随后用 CI artifact 记录 Linux 高水位。没有任务级成功率、token 成本或长周期退化测量，因此本轮不声称能力提升。
+未验证：没有任务级成功率、token 成本或长周期退化测量，因此本轮不声称能力提升。
 
 ## 7. 风险与限制
 
 - **棘轮不是行为测试。** 覆盖率可以因测试写法变化而波动；真正的行为闸门仍是全套测试、安装验证和 PR 评审。棘轮只防止「悄悄把质量底线往下挪」。
-- **每平台基线需要维护。** 新增平台（例如 macOS）第一次会提示通过；必须用 `--update` 记录后再依赖它。Linux 的高水位在第一次 CI artifact 之后补入。
+- **每平台基线需要维护。** 本次 PR 已用 CI artifact 记录 Linux 高水位 `94.62 / 86.65 / 93.89 / 97.56`；新增平台（例如 macOS）第一次仍会提示通过，必须用 `--update` 记录后再依赖它。
 - **故意的降低需要理由。** 删除大量代码或测试时，`--update --allow-decrease` 是唯一出口；本轮把「必须写进记录」写进了合同，但脚本本身无法验证理由是否充分。
 - **文档合同依赖执行者遵守。** 脚本只能检查覆盖率；轮次记录、失败回滚、停止条件靠流程与 PR 评审。后续可以用脚本校验记录小节，但不在本轮。
 - **重载会中断当前 Assignment。** 按 PR #19 的恢复上限，一次重载在三次自动恢复预算内；连续两轮重载仍可能消耗预算，所以每轮最多触发一次。
