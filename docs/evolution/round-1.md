@@ -105,7 +105,7 @@
 - 基线（改动前）`pnpm check`：exit 0；1,263 passed / 42 skipped；覆盖率 93.13 / 85.68 / 93.08 / 96.22；`lib/index.js` 468.58 kB。
 - `pnpm vitest run tests/coverage-ratchet.spec.ts`：7/7 passed（缺失基线、低于高水位、容差内下降不降低高水位、平台无基线、记录新平台、拒绝无理由降低、坏 summary）。
 - 改动后 `pnpm check`：exit 0；1,270 passed / 42 skipped；覆盖率 93.13 / 85.68 / 93.08 / 96.22；`coverage ratchet: ok`；`lib/index.js` 468.58 kB。
-- `node scripts/verify-install.mjs --dsh C:/Users/tyecl/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/lib/bin.js`：13/13 项通过；receipt `.artifacts/install-verification.json`，commit 见 PR。
+- `node scripts/verify-install.mjs --dsh C:/Users/tyecl/.dsh/state/superagent-desktop/work/.tools/dsh-0.2.2-rc.1/node_modules/@deepseek-ai/dsh/lib/bin.js --receipt .artifacts/install-verification.json`：13/13 项通过（DSH 0.2.2-rc.1，一次性 profile，面板 API 200、setup `repositoryUnset`、数据库与两个 preset 均就位）；receipt 的代码提交是 `b3d0540`，之后的文档提交不改变 bundle。
 - `tests/docs.spec.ts`、`tests/class-docs.spec.ts`、`tests/model-surface.spec.ts`：随全套通过。
 - PR CI、release、部署重载：见 §8 的对账（合并后补齐）。
 
@@ -122,7 +122,7 @@
 
 ## 8. 落地与下一轮
 
-- **PR：** 待创建（本轮分支 `agent/self-evolve-loop-60b58299770e`）。
+- **PR：** 待创建（本轮分支 `agent/self-evolve-loop-60b58299770e`；代码提交 `b3d0540`，安装验证 receipt 对应该提交）。
 - **合并提交 / release：** 合并后由 release job 自动发 patch 版本；下一轮对账时补上 tag 与 release URL。
 - **部署与重载：** 合并后把部署的 `link:` 检出更新到 release 提交，`pnpm install --frozen-lockfile && pnpm build`，写新的 `# Reload trigger` 注释触发 HMR，并用管理 API 验证 `health.runtime.state`、`setup.problem`、parts 与 HEAD；证据写进下一轮对账。
 - **下一轮：** 先完成本轮对账；然后按新的调研重新排序候选。当前候选：GAP-05（小写 cookie 头脱敏，安全边界，改动小）；静默看门狗（需要产品决定超时语义，若无决定则不做）；token/费用账本（需要 host 用量来源与展示面）。不得为了「有东西可做」而降低闸门或跨范围。
