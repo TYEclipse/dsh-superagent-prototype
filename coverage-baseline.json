@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "platforms": {
+    "win32-x64": {
+      "recordedAt": "2026-11-24T15:14:00.000Z",
+      "commit": "d6ffbd2",
+      "statements": 93.13,
+      "branches": 85.68,
+      "functions": 93.08,
+      "lines": 96.22
+    }
+  }
+}

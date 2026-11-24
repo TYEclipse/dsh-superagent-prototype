@@ -49,7 +49,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check": "pnpm typecheck && pnpm test:coverage && pnpm build",
+    "coverage:ratchet": "node scripts/coverage-ratchet.mjs",
+    "coverage:update": "node scripts/coverage-ratchet.mjs --update",
+    "check": "pnpm typecheck && pnpm test:coverage && pnpm coverage:ratchet && pnpm build",
     "doctor": "node scripts/doctor.mjs",
     "release:plan": "node scripts/release.mjs --dry-run",
     "verify:install": "node scripts/verify-install.mjs"

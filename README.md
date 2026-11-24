@@ -41,10 +41,15 @@ Read the numbered documents in order; each builds only on the ones before it.
 
 ## Development
 
-`pnpm check` runs the typecheck, the tests under the coverage gate and the build. `pnpm test`
-runs the tests without coverage; `pnpm test:coverage` writes the v8 report to `coverage/` and
-fails below the thresholds in `vitest.config.ts`. CI runs `pnpm check` on every pull request and
-push to `main`.
+`pnpm check` runs the typecheck, the tests under the coverage gate, the coverage ratchet and the
+build. `pnpm test` runs the tests without coverage; `pnpm test:coverage` writes the v8 report to
+`coverage/` and fails below the thresholds in `vitest.config.ts`. `pnpm coverage:ratchet` then
+compares the report with the high-water mark for this platform in `coverage-baseline.json`, so a
+later change cannot spend the margin above the fixed thresholds; `pnpm coverage:update` raises the
+mark after an improvement. CI runs `pnpm check` on every pull request and push to `main`.
+
+The self-evolution round protocol, its stop conditions and its round records live in
+[docs/evolution](docs/evolution/README.md).
 
 Every push to `main` that passes CI also publishes a release: `scripts/release.mjs` bumps the patch
 version in `package.json`, commits it as `chore(release): v<version>`, tags the commit and creates a

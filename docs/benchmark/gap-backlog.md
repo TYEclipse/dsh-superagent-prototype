@@ -22,17 +22,21 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 | ID | Priority | Dimension | Gap | Status | PR |
 | --- | --- | --- | --- | --- | --- |
-| GAP-01 | P0 | Architecture (security boundary) | Redact credentials from subprocess output before it becomes Ticket state | review (round 1) | #8 |
-| GAP-02 | P1 | Install / upgrade | `doctor` must prove the built `lib/` matches the checkout | review (round 1) | #8 |
-| GAP-03 | P1 | Orchestration | Classify and bound prepare-command failures | proposed | — |
+| GAP-01 | P0 | Architecture (security boundary) | Redact credentials from subprocess output before it becomes Ticket state | fixed | #8 (`6f4b8e9`) |
+| GAP-02 | P1 | Install / upgrade | `doctor` must prove the built `lib/` matches the checkout | fixed | #8 (`6f4b8e9`) |
+| GAP-03 | P1 | Orchestration | Classify and bound prepare-command failures | fixed | #17 (`5e3c8c8`) |
 | GAP-04 | P2 | Memory / state | Bounded, reversible retention for domain records | blocked (needs a policy decision) | — |
 | GAP-05 | P1 | Architecture (security boundary) | Redaction edge: lowercase cookie headers in JSON dumps | proposed | — |
+
+The statuses above were reconciled against the code and GitHub history on 2026-11-24. GAP-01 and
+GAP-02 merged with PR #8, and GAP-03 merged with PR #17; the round-1 entries that still said
+`review` or `proposed` were stale. See [docs/evolution/round-1.md](../evolution/round-1.md).
 
 ## Items
 
 ### GAP-01 — Redact credentials from subprocess output before it becomes Ticket state
 
-- **Status:** review (round 1); PR: #8
+- **Status:** fixed (round 1, PR #8, merge `6f4b8e9`)
 - **Fingerprint:** `redact-subprocess-output`
 - **Dimension:** architecture (the boundary between `src/infra` I/O and `src/core` state)
 - **Reference:** `agent/redact.py:1474-1479` (`redact_sensitive_text`), `:1780-1783`
@@ -63,7 +67,7 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 ### GAP-02 — `doctor` must prove the built `lib/` matches the checkout
 
-- **Status:** review (round 1); PR: #8
+- **Status:** fixed (round 1, PR #8, merge `6f4b8e9`)
 - **Fingerprint:** `doctor-build-current`
 - **Dimension:** install / upgrade
 - **Reference:** `scripts/verify-bootstrap-version-stamp.py:1-8,9-18` (the stamp "must tell the
@@ -90,7 +94,7 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 
 ### GAP-03 — Classify and bound prepare-command failures
 
-- **Status:** proposed
+- **Status:** fixed (PR #17, `5e3c8c8`, 2026-11-10)
 - **Fingerprint:** `prepare-typed-retry`
 - **Dimension:** orchestration
 - **Reference:** `agent/kanban_turn_recovery.py:10-14` (retry in place, bounded, non-zero on
@@ -158,6 +162,7 @@ note is not a queue entry. The design, roles, gates and stop conditions are in
 | Round | Date | Reference | Found | Fixed | Gates | Result |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 (bootstrap) | 2026-11-09 | `e9b8587` | 4 ranked + 8 rejected; verification added GAP-05 | GAP-01 (+ repair), GAP-02 (PR #8); GAP-05 filed | `pnpm check` exit 0; `verify:install` 13/13 (receipt commit `feba6ee`); independent verifier PASS + delta PASS | PR #8; future rounds are driven by the host automation. |
+| — (reconcile) | 2026-11-24 | — | No new gap found | GAP-03 was already fixed by PR #17; GAP-01/02 confirmed fixed by PR #8; GAP-05 remains open | Statuses read from `git log` and the merged PRs; no code change | Queue reconciled in [evolution round 1](../evolution/round-1.md); the self-evolution loop records later rounds in `docs/evolution/`. |
 
 ## Not adopted
 
