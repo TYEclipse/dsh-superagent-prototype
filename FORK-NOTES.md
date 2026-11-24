@@ -115,6 +115,14 @@ by this fork; use the upstream repository for those.
   93.07/85.63/93.09/96.19% on native Windows with the 42 POSIX-only tests
   skipped. A GitHub Actions workflow runs `pnpm check` on every pull request
   and push to `main`.
+- `ci(release): publish a version for every update to main` — after the check
+  job passes for a push to `main`, the release job runs `scripts/release.mjs`:
+  it bumps the patch version in `package.json`, commits `chore(release):
+  v<version>`, pushes the commit and its annotated tag atomically, and creates a
+  GitHub release with generated notes. It releases only the commit CI checked
+  out; when `main` moved first, the newer run publishes the newer state.
+  `pnpm release:plan` prints the planned version; `tests/release.spec.ts` runs
+  the script against a local bare remote.
 
 ## Install on DSH 0.2.2-rc.1
 

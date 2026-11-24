@@ -425,6 +425,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/repetition.spec.ts` | The no-progress detector: repeated results and repeated calls across steps, parallel batches, canonical arguments and results, per-turn resets and the nudge budget |
 | `tests/architecture.spec.ts` | Architecture fitness functions: relative imports resolve, the core stays free of outside imports, Sources do not import the application, and the panel imports only `src/app/api.ts` values |
 | `tests/doctor.spec.ts` | The doctor script: ordered checks against a throwaway repository and a fake dsh, engine-range failures, an unbuilt bundle, a stale build, a mismatched install receipt, and `--fix` creating a missing state directory |
+| `tests/release.spec.ts` | The release script: the planned patch version, the committed and pushed bump with its tag, the next update bumping again, a newer push taking the release, and a dirty checkout being refused |
 | `tests/memory.spec.ts` | Project memory: recording a finished Ticket once, bounding notes, the character budget of the rendered section, and the worker-only Project memory prompt section |
 | `tests/passes.spec.ts` | Passes: one at a time, the ones asked for during a pass run as one after it, and the runtime health a failed pass reports |
 | `tests/outbox.spec.ts` | The Outbox on a running Runtime: messages wait while processing is paused or their Source is not installed |
