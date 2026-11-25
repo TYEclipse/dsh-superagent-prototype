@@ -193,9 +193,11 @@ Environment: Windows 11, Node 24.13.0, pnpm 11.7.0, DSH 0.2.2-rc.1.
 
 ## Known limits
 
-- GitHub and Feishu Sources still rely on POSIX worker shims (`worker-bin/gh`
-  etc.) and the POSIX service script; they are not ported to native Windows by
-  this fork.
+- GitHub and Feishu Sources still rely on the POSIX service script, and their
+  worker shims are not ported to native Windows: Windows writes no `worker-bin`
+  shims (an extensionless `#!/bin/sh` file cannot run there and only offers the
+  "open with" dialog), so workers use the configured absolute CLI paths and
+  `blockedCommands` is POSIX-only.
 - The prototype remains research code with the upstream safety posture: its
   Executor presets run with `danger-full-access` as the starting OS user. Use a
   dedicated OS account and a dedicated agent GitHub account.

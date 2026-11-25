@@ -18,6 +18,12 @@ const LEGACY_MARKERS = ['dsh-tag', 'dsh-go', 'dsh-freelancer'].map(name => `# Wr
 /** Commands workers need, which `blockedCommands` cannot block: the shims and git. */
 export const WORKER_COMMANDS: readonly string[] = ['gh', 'git', 'lark-cli']
 export const workerBin = (stateDir: string): string => join(stateDir, 'worker-bin')
+/**
+ * Whether this host can execute the POSIX command shims. Windows cannot run an extensionless `#!/bin/sh` file: the
+ * file only offers a person the "open with" dialog, and worker shells resolve the real CLI anyway. A batch wrapper
+ * would change argument parsing, so Windows uses the configured absolute CLIs instead. Exported for tests.
+ */
+export const usesWorkerShims = (platform: NodeJS.Platform = process.platform): boolean => platform !== 'win32'
 export const workerGitConfig = (stateDir: string): string => join(stateDir, 'worker-gitconfig')
 const shellQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 const gitQuote = (value: string): string => `"${value.replace(/[\\"]/g, char => `\\${char}`)}"`
@@ -74,34 +80,39 @@ async function own(file: string, text: string, mode = 0o644): Promise<void> {
 }
 
 /**
- * Atomically writes worker CLI shims and the isolated git configuration file into the state directory, refusing to overwrite foreign files.
- * Each shim strips the shim directory from PATH before exec so wrapper scripts resolving `gh` or `lark-cli` by name reach the real binary.
+ * Atomically writes the isolated git configuration file into the state directory, and on POSIX hosts the worker CLI
+ * shims, refusing to overwrite foreign files. Each shim strips the shim directory from PATH before exec so wrapper
+ * scripts resolving `gh` or `lark-cli` by name reach the real binary. Windows writes no shims: it cannot run an
+ * extensionless `#!/bin/sh` file, and workers there resolve the configured absolute CLIs; blocked commands are
+ * POSIX-only.
  */
-export async function writeEnvironment(deployment: Pick<Deployment, 'stateDir' | 'repository' | 'github' | 'feishu'>, blockedCommands: readonly string[]): Promise<void> {
+export async function writeEnvironment(deployment: Pick<Deployment, 'stateDir' | 'repository' | 'github' | 'feishu'>, blockedCommands: readonly string[], platform: NodeJS.Platform = process.platform): Promise<void> {
   const { stateDir, repository, github, feishu } = deployment
   const dir = workerBin(stateDir)
   await mkdir(dir, { recursive: true })
   const before = await readdir(dir)
   for (const name of before) { const file = join(dir, name); if (!await written(file)) throw new SetupError('foreignFile', { file }) }
-  // Workers may be running concurrently: write each shim to a temp file and atomically rename it so no command ever resolves past the shim directory.
   const kept = new Set<string>()
-  const shim = async (name: string, body: string): Promise<void> => {
-    const temporary = join(dir, `.${name}.${process.pid}.tmp`)
-    await writeFile(temporary, `#!/bin/sh\n${MARKER}\n${body}\n`, { mode: 0o755 })
-    await rename(temporary, join(dir, name))
-    kept.add(name)
-  }
-  const withoutShims = [
-    `self=${shellQuote(dir)}`, 'rest=', 'IFS=:', 'set -f',
-    'for entry in $PATH; do [ "$entry" = "$self" ] || rest="${rest:+$rest:}$entry"; done',
-    'set +f', 'unset IFS', 'PATH=$rest', 'export PATH',
-  ].join('\n')
-  const run = (program: string): string => `${withoutShims}\nexec ${shellQuote(program)} "$@"`
-  const fail = (message: string): string => `echo ${shellQuote(message)} >&2\nexit 1`
-  await shim('gh', run(github.cli))
-  await shim('lark-cli', feishu ? run(feishu.cli) : fail('lark-cli is unavailable: this installation has no Feishu bot.'))
-  for (const name of new Set(blockedCommands.filter(name => !WORKER_COMMANDS.includes(name)))) {
-    await shim(name, fail(`${name} is blocked in this installation; use gh, which acts as ${github.login}.`))
+  if (usesWorkerShims(platform)) {
+    // Workers may be running concurrently: write each shim to a temp file and atomically rename it so no command ever resolves past the shim directory.
+    const shim = async (name: string, body: string): Promise<void> => {
+      const temporary = join(dir, `.${name}.${process.pid}.tmp`)
+      await writeFile(temporary, `#!/bin/sh\n${MARKER}\n${body}\n`, { mode: 0o755 })
+      await rename(temporary, join(dir, name))
+      kept.add(name)
+    }
+    const withoutShims = [
+      `self=${shellQuote(dir)}`, 'rest=', 'IFS=:', 'set -f',
+      'for entry in $PATH; do [ "$entry" = "$self" ] || rest="${rest:+$rest:}$entry"; done',
+      'set +f', 'unset IFS', 'PATH=$rest', 'export PATH',
+    ].join('\n')
+    const run = (program: string): string => `${withoutShims}\nexec ${shellQuote(program)} "$@"`
+    const fail = (message: string): string => `echo ${shellQuote(message)} >&2\nexit 1`
+    await shim('gh', run(github.cli))
+    await shim('lark-cli', feishu ? run(feishu.cli) : fail('lark-cli is unavailable: this installation has no Feishu bot.'))
+    for (const name of new Set(blockedCommands.filter(name => !WORKER_COMMANDS.includes(name)))) {
+      await shim(name, fail(`${name} is blocked in this installation; use gh, which acts as ${github.login}.`))
+    }
   }
   for (const name of before) if (!kept.has(name)) await unlink(join(dir, name))
   await own(workerGitConfig(stateDir), [
