@@ -10,12 +10,12 @@
       "lines": 96.27
     },
     "linux-x64": {
-      "recordedAt": "2026-11-24T15:26:09.783Z",
-      "commit": "4b9bed2",
-      "statements": 94.62,
-      "branches": 86.65,
-      "functions": 93.89,
-      "lines": 97.56
+      "recordedAt": "2026-11-25T13:46:00.093Z",
+      "commit": "d0b0114",
+      "statements": 94.66,
+      "branches": 86.71,
+      "functions": 93.95,
+      "lines": 97.6
     }
   }
 }
