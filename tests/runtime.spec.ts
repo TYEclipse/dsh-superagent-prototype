@@ -30,7 +30,7 @@ import { feishuChannel } from '../src/sources/feishu-trigger.ts'
 import { commentTrigger, githubChannel } from '../src/sources/github-trigger.ts'
 import { IM_WORDS } from '../src/infra/text.ts'
 import { observePull, pullOf } from '../src/sources/github-pull.ts'
-import { credentialHelper, workerGitConfig } from '../src/infra/environment.ts'
+import { credentialHelper, usesWorkerShims, workerGitConfig } from '../src/infra/environment.ts'
 import { policyHistory } from '../src/app/settings-history.ts'
 import { overview } from '../src/app/views/overview.ts'
 import { preview, readable } from '../src/app/views/text.ts'
@@ -1033,13 +1033,14 @@ it('waits for setup when the shim directory holds a file dsh-superagent did not 
   await next.stop()
 })
 
-it('rewrites the blocked-command shims when the Executor settings change them, without a restart', async () => {
+it('applies blocked-command changes without a restart, writing shims only where an extensionless script can run', async () => {
   const bin = join(directory, 'worker-bin')
+  const shims = (blocked: string[]): string[] => usesWorkerShims() ? ['gh', 'lark-cli', ...blocked] : []
   const save = (blockedCommands: string[]) => runtime.settings.save('executor', { ...runtime.store.settings().executor, blockedCommands }, runtime.store.blockRevision('executor'), 'panel')
   expect(await save(['personal-gh'])).toMatchObject({ saved: true, restarting: false })
-  expect(readdirSync(bin).sort()).toEqual(['gh', 'lark-cli', 'personal-gh'])
+  expect(readdirSync(bin).sort()).toEqual(shims(['personal-gh']))
   await save([])
-  expect(readdirSync(bin).sort()).toEqual(['gh', 'lark-cli'])
+  expect(readdirSync(bin).sort()).toEqual(shims([]))
   // The commands workers need cannot be blocked.
   await expect(save(['gh'])).rejects.toThrow()
   expect(restarts).not.toHaveBeenCalled()

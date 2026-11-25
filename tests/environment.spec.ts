@@ -5,7 +5,7 @@ import { join, delimiter } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SENSITIVE_ENV_PATTERN, type SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
-import { GIT_LOCATION, agentVariables, credentialHelper, runAsWorker, verifyDirectory, withoutDirectory, workerBin, workerGitConfig, writeEnvironment }
+import { GIT_LOCATION, agentVariables, credentialHelper, runAsWorker, usesWorkerShims, verifyDirectory, withoutDirectory, workerBin, workerGitConfig, writeEnvironment }
   from '../src/infra/environment.ts'
 import { CliError } from '../src/infra/commands.ts'
 import { testDeployment } from './fixtures/deployment.ts'
@@ -21,6 +21,12 @@ const workerEnv = (env: Record<string, string | undefined>): Record<string, stri
   Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined && !SENSITIVE_ENV_PATTERN.test(entry[0])))
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'environment-')); mkdirSync(join(dir, 'real')) })
 afterEach(() => { rmSync(dir, { recursive: true, force: true }) })
+
+it('writes POSIX worker shims only on platforms that can execute an extensionless script', () => {
+  expect(usesWorkerShims('linux')).toBe(true)
+  expect(usesWorkerShims('darwin')).toBe(true)
+  expect(usesWorkerShims('win32')).toBe(false)
+})
 
 describe.skipIf(process.platform === 'win32')('worker shims', () => {
   it('run a wrapper that calls `gh` by name without reaching the shim again, and keep the caller\'s other PATH entries', async () => {
@@ -68,6 +74,31 @@ describe.skipIf(process.platform === 'win32')('worker shims', () => {
     await writeEnvironment(testDeployment({ stateDir: dir }), [])
     expect(readdirSync(workerBin(dir)).sort()).toEqual(['gh', 'lark-cli'])
     expect(readFileSync(workerGitConfig(dir), 'utf8')).toContain('Written by dsh-superagent')
+  })
+})
+
+describe('POSIX worker environment', () => {
+  it('writes the POSIX shims when asked for a POSIX host', async () => {
+    await writeEnvironment(testDeployment({ stateDir: dir, feishu: undefined }), ['personal-gh'], 'linux')
+    const bin = workerBin(dir)
+    expect(readdirSync(bin).sort()).toEqual(['gh', 'lark-cli', 'personal-gh'])
+    expect(readFileSync(join(bin, 'gh'), 'utf8')).toContain('#!/bin/sh')
+    expect(readFileSync(join(bin, 'personal-gh'), 'utf8')).toContain('personal-gh is blocked in this installation; use gh, which acts as agent-bot.')
+  })
+})
+
+describe('Windows worker environment', () => {
+  it('writes no command shims and removes one left by an older version', async () => {
+    mkdirSync(workerBin(dir), { recursive: true })
+    writeFileSync(join(workerBin(dir), 'gh'), `#!/bin/sh\n# Written by dsh-superagent on every start; edits are lost.\nexec 'C:/agent/gh.exe' "$@"\n`)
+    await writeEnvironment(testDeployment({ stateDir: dir, feishu: undefined }), ['personal-gh'], 'win32')
+    expect(readdirSync(workerBin(dir))).toEqual([])
+    expect(readFileSync(workerGitConfig(dir), 'utf8')).toContain('Written by dsh-superagent')
+  })
+  it('still refuses a foreign file in worker-bin', async () => {
+    mkdirSync(workerBin(dir), { recursive: true })
+    writeFileSync(join(workerBin(dir), 'notes'), 'notes\n')
+    await expect(writeEnvironment(testDeployment({ stateDir: dir }), [], 'win32')).rejects.toThrow('was not written by dsh-superagent')
   })
 })
 
