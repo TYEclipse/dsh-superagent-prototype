@@ -34,8 +34,9 @@ export function Section({ title, count, children, action, hint, badge, icon }: {
   </section>
 }
 export function Hint({ children }: { children: ReactNode }) { return <p className="dt-hint">{children}</p> }
-export function LabelValue({ label, value }: { label: string; value: ReactNode }) {
-  return <span className="dt-lv"><span className="dt-lv-label">{label}</span> <span className="dt-lv-value">{value}</span></span>
+export function LabelValue({ label, value, title }: { label: string; value: ReactNode; title?: string }) {
+  return <span className="dt-lv" title={title}><span className="dt-lv-label">{label}</span> <span
+    className="dt-lv-value">{value}</span></span>
 }
 export function KeyValues({ rows }: { rows: [string, ReactNode][] }) {
   return <dl className="dt-kv">{rows.map(([key, value], index) => <div key={index}

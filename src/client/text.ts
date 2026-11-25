@@ -42,6 +42,11 @@ export function readableMarkers(t: T, text: string): string {
     .replace(/@_user_\d+/g, t('unknownMention'))
 }
 const timeLocale = (lang: string) => lang === 'en' ? 'en' : 'zh-CN'
+/** A plain integer count in the panel's language, for exact values shown in a tooltip or a breakdown. */
+export const formatCount = (value: number, lang: string): string => new Intl.NumberFormat(timeLocale(lang)).format(value)
+/** A token count at a glance: 1,200 -> `1.2K` in English and `1.2万` in Chinese, using the locale's compact notation. */
+export const formatTokens = (value: number, lang: string): string =>
+  new Intl.NumberFormat(timeLocale(lang), { notation: 'compact', maximumFractionDigits: 1 }).format(value)
 export function when(value: string | undefined, lang: string): string {
   if (!value) return ''
   const date = new Date(value)

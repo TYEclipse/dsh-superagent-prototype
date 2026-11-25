@@ -1807,6 +1807,31 @@ it('steers a worker that repeats the same tool call and result, once per turn', 
   expect(nudges()[1]!.id).not.toBe(nudges()[0]!.id)
 })
 
+it('counts the token usage a worker reports toward its Ticket, once per Session event', async () => {
+  const { ticket, sessionId } = await acceptedTicket()
+  const agent = agents.get(sessionId)! as unknown as { status: string; session: object }
+  agent.status = 'running'
+  const emit = (session: object, event: object) => (runtime as unknown as { ctx: Context }).ctx.emit('session/event',
+    session as never, event as never)
+  const message = (seq: number, inputTokens: number, outputTokens: number, usage = true) => ({ type: 'assistant/message', seq,
+    time: 1_700_000_000_000 + seq, data: { turn: 1, step: seq, message: { role: 'assistant', content: [] }, stream: [],
+      ...usage ? { usage: { inputTokens, outputTokens } } : {} } })
+  // The main Session's routing calls belong to no Ticket, and an assistant message without accounting adds nothing.
+  const master = agents.get(runtime.masterId)! as unknown as { status: string; session: object }
+  master.status = 'running'
+  emit(master.session, message(1, 999, 111))
+  emit(agent.session, message(1, 0, 0, false))
+  expect(((await api('GET', `tickets/${ticket.id}`)).body as { usage?: unknown })).not.toHaveProperty('usage')
+  emit(agent.session, message(1, 100, 20))
+  // The same event delivered twice does not count twice.
+  emit(agent.session, message(1, 100, 20))
+  emit(agent.session, message(2, 50, 10))
+  const detail = (await api('GET', `tickets/${ticket.id}`)).body as { usage: Record<string, number> }
+  expect(detail.usage).toMatchObject({ inputTokens: 150, outputTokens: 30, totalTokens: 180, steps: 2 })
+  const list = (await api('GET', 'tickets?state=open')).body as { items: { id: string; usage?: Record<string, number> }[] }
+  expect(list.items.find(item => item.id === ticket.id)?.usage).toMatchObject({ totalTokens: 180 })
+})
+
 it('selects its own preset again for a main Session or worker a person switched before its first turn, and not after it', async () => {
   const { sessionId } = await acceptedTicket()
   // DSH's preset registry, which takes a selection only before a Session's first turn.

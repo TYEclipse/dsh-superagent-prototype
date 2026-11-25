@@ -4,7 +4,7 @@ import type { DecisionRow, ThreadFacts, ThreadRow, TicketRow } from './api.ts'
 import { Icon, Tag } from './controls.tsx'
 import { decisionMark, threadMark, ticketMark } from './marks.ts'
 import { usePanel } from './provider.tsx'
-import { actorName, localized, readableMarkers, reasonLabel, valueLabel } from './text.ts'
+import { actorName, formatCount, formatTokens, localized, readableMarkers, reasonLabel, valueLabel } from './text.ts'
 import { ActionLink, ConfirmButton, LabelValue, SessionButton, StageMark, When } from './widgets.tsx'
 
 export function TicketLine({ ticket, question, onChanged, context }: {
@@ -24,6 +24,10 @@ export function TicketLine({ ticket, question, onChanged, context }: {
         {ticket.threads.map(thread => <ThreadChip key={thread.key} thread={thread} />)}
         {context && <ContextTag />}
         {ticket.undelivered > 0 && <LabelValue label={t('ticketUndeliveredLabel')} value={ticket.undelivered} />}
+        {ticket.usage && <LabelValue label={t('tokensLabel')} value={formatTokens(ticket.usage.totalTokens, t('lang'))}
+          title={t('tokensTitle', { input: formatCount(ticket.usage.inputTokens, t('lang')),
+            output: formatCount(ticket.usage.outputTokens, t('lang')), cacheRead: formatCount(ticket.usage.cacheReadTokens,
+              t('lang')), cacheWrite: formatCount(ticket.usage.cacheWriteTokens, t('lang')), steps: ticket.usage.steps })} />}
         {note ? <span className={note.error ? 'dt-ticket-note dt-ticket-note-error' : 'dt-ticket-note'} title={note.text}>{note.text}</span>
           : <When at={ticket.updatedAt} />}
       </div>

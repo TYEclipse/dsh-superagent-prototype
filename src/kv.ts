@@ -35,6 +35,8 @@ export const KV = {
   memory: { notes: record<import('./app/memory.ts').MemoryNote[]>('memory-notes'),
     /** Notes older than the prompt window, kept for history and never read by a prompt. */
     archive: record<import('./app/memory.ts').MemoryNote[]>('memory-archive') },
+  /** Usage: token totals a Ticket's worker and subagent Sessions reported, with each Session's last counted event sequence. */
+  usage: { ticket: family<import('./app/usage.ts').TicketUsage, [ticket: string]>('usage-ticket:') },
   /** Sessions: prompt revisions each Session has worked under, ordered oldest first; the last entry (`.at(-1)`) is its active revision. */
   sessions: { prompts: family<number[], [session: string]>('session-prompts:') },
   /** Schema 11 migration: legacy main-Session queues imported into the effect table. */

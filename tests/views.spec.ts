@@ -8,7 +8,7 @@ import { SourceRegistry } from '../src/sources/registry.ts'
 import { feishuKind } from '../src/sources/feishu.ts'
 import { githubKind } from '../src/sources/github.ts'
 import { snapshot, threadSummary, ticketSummary, triggerView } from '../src/app/views/records.ts'
-import { basisFacts, ticketDetail } from '../src/app/views/tickets.ts'
+import { basisFacts, ticketDetail, ticketList } from '../src/app/views/tickets.ts'
 import { threadDetail } from '../src/app/views/threads.ts'
 import { droppedReplies, sourcesStatus } from '../src/app/views/sources.ts'
 import { overview } from '../src/app/views/overview.ts'
@@ -268,6 +268,17 @@ it('names a bot\'s Mandate as a bot once the Policy no longer lists it', () => {
   store.tickets.save({ id: 't1', title: 'Fix', decisionId: 'd', channels: [], undelivered: [], createdAt: at, updatedAt: at, mandate,
     origin: { triggerId: 'e1', triggerIds: ['e1'] }, assignments: [], inputs: [] })
   expect(ticketDetail(host, 't1')!.mandate.actor).toEqual({ source: 'feishu', id: 'cli_removed', name: feishuKind.policy!.unnamed!.bot })
+})
+
+it('shows a Ticket\'s reported token usage on its row and its detail, and omits it until a worker reports', () => {
+  const host = views()
+  live('t1')
+  expect(ticketDetail(host, 't1')).not.toHaveProperty('usage')
+  store.set(KV.usage.ticket('t1'), { inputTokens: 1_200, outputTokens: 300, totalTokens: 1_500, cacheReadTokens: 800,
+    cacheWriteTokens: 40, reasoningTokens: 90, steps: 2, updatedAt: at, sequences: { 'worker-t1': 9 } })
+  expect(ticketDetail(host, 't1')!.usage).toEqual({ inputTokens: 1_200, outputTokens: 300, totalTokens: 1_500,
+    cacheReadTokens: 800, cacheWriteTokens: 40, reasoningTokens: 90, steps: 2, updatedAt: at })
+  expect(ticketList(host, 'open', 0, 10).items.find(item => item.id === 't1')?.usage).toMatchObject({ totalTokens: 1_500 })
 })
 
 it('offers a person to send a follow-up to Eval while a ticket decides it, or once nothing did', () => {
