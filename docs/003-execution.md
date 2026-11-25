@@ -52,6 +52,12 @@ Stopping or restarting the plugin inside the DeepSeek Harness process uses the s
 
 Worker subagents, including nested ones, use DeepSeek Harness's `standard` preset with the worker's permissions. They retain only the worker's allowed work tools, and lose those tools when the Ticket ends. Under `standard`, a shell command moves to the background after 60 seconds. A subagent's jobs are killed when it ends.
 
+### Token usage
+
+DeepSeek Harness reports each model step's token usage on its assistant message. The Executor counts those reports for the Ticket's worker Session and for the worker's subagent Sessions toward a per-Ticket ledger in the Store, and the panel shows the total on the Ticket's row and detail with input, output, cache-read, cache-write, reasoning and step counts. The main Session's routing calls are not attributed to any Ticket. A Session event's sequence makes a replayed or re-delivered event count once.
+
+The ledger is observational: it does not cap, stop or retry work, and changing a model, route or budget remains a deployment decision. It records only steps that reported usage, so an adapter that reports none leaves the Ticket without a number, and steps from before this version are not backfilled.
+
 ### Preparing a Ticket directory
 
 Before the first Assignment, if the Ticket directory does not exist, the prepare command runs once with `sh` in the execution root. It has ten minutes to finish. Without a prepare command, the worker starts in an empty directory.

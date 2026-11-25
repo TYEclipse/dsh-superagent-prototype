@@ -18,6 +18,7 @@ import { initializeRoleModel } from './role-models.ts'
 import { bundledSkills } from './skill-files.ts'
 import { SKILL_PREFIX, type PromptVersion, type Prompts } from './prompts.ts'
 import type { Store } from './store.ts'
+import { addUsage } from './usage.ts'
 import { KV } from '../kv.ts'
 import type { RegisterTool, Tool } from './tools/tool.ts'
 
@@ -43,7 +44,9 @@ export interface SessionsHost {
  * What Sessions registered for an agent it decorated: the releases of its prompt section, tools and skill scope, the scope
  * its skills are registered in, and the skills of one prompt revision; for a worker's subagent, only its tool limits.
  */
-interface SessionBinding { disposers: (() => void)[]; scope?: Context; skills?: { revision: number; dispose: () => void }; subagent?: true }
+interface SessionBinding { disposers: (() => void)[]; scope?: Context; skills?: { revision: number; dispose: () => void }; subagent?: true;
+  /** The Ticket whose usage this worker's or subagent's model steps count toward; absent for the main Session. */
+  ticketId?: string }
 
 /** The agent presets Executor Sessions and the main Session are created with, which the bundle's patch defines. */
 export const WORKER_PRESET = 'dsh-superagent-worker', ROUTER_PRESET = 'dsh-superagent-router'
@@ -104,7 +107,7 @@ function noWait({ name, arguments: input }: { name: string; arguments: unknown }
 /**
  * Creates and decorates orchestrator and worker DSH `Agent` sessions with role models, system prompt sections from `Prompts`, runtime skills, and restricted tool sets.
  * `Runtime`, `DshExecutor`, `MasterAssessor`, `Settings`, and management routes/tools use it to ensure sessions, deliver deduplicated messages via `AgentDelivery`, and process ordered `relay` and `notice` effects.
- * Feeds session events into `RetryHealth` to report model budget waits on the `models` `HealthEntry`, and durably records which prompt revisions each session has worked under in `Store` (`KV.sessions.prompts`) to authorize prompt version reads.
+ * Feeds session events into `RetryHealth` to report model budget waits on the `models` `HealthEntry`, counts the token usage each worker or subagent reports toward its Ticket, and durably records which prompt revisions each session has worked under in `Store` (`KV.sessions.prompts`) to authorize prompt version reads.
  */
 export class Sessions {
   private readonly agentDelivery: AgentDelivery
@@ -138,6 +141,7 @@ export class Sessions {
         this.updateModelHealth()
       }
       this.observeRepetition(agent, event)
+      this.observeUsage(agent, binding, event)
     })
     ctx.on('agent/created', async ({ agent }) => { await this.decorate(agent); return undefined })
     // Opening a Session in DSH's Web UI before its first turn may select the default preset for it: select ours again. After
@@ -171,6 +175,17 @@ export class Sessions {
     void this.prompt(agent.id, signal.id, signal.text, 'steer').catch((error: unknown) => {
       this.ctx.logger.warn('dsh-superagent could not steer a repeating Session: %s', String(error))
     })
+  }
+  /**
+   * Adds the token usage an `assistant/message` reports to its Ticket's ledger. Worker and subagent Sessions count; the
+   * main Session does not, because its routing calls belong to no one Ticket. The event sequence makes a replay or a
+   * re-delivered event idempotent through the persisted per-Session sequence.
+   */
+  private observeUsage(agent: Agent, binding: SessionBinding, event: SessionEvent): void {
+    if (event.type !== 'assistant/message' || binding.ticketId === undefined || !event.data.usage) return
+    const previous = this.host.store.get(KV.usage.ticket(binding.ticketId))
+    const next = addUsage(previous, { session: agent.id, seq: event.seq, time: event.time, usage: event.data.usage })
+    if (next) this.host.store.set(KV.usage.ticket(binding.ticketId), next)
   }
   /** Resolves or creates session `id` in workspace `cwd`, initializes its role model, decorates it with prompts/skills/tools, sets `danger-full-access` permissions, and renames it to `title`. */
   async ensure(id: string, cwd: string, title: string, role: 'orchestrator' | 'worker'): Promise<Agent> {
@@ -273,7 +288,7 @@ export class Sessions {
     const master = agent.id === host.masterId
     const ticket = master ? undefined : this.ticketOf(agent)
     if (!master && !ticket) { this.limitSubagent(agent); return }
-    const binding: SessionBinding = { disposers: [] }
+    const binding: SessionBinding = { disposers: [], ...ticket ? { ticketId: ticket.id } : {} }
     this.bindings.set(agent, binding)
     this.retryHealth.restore(agent.id, agent.session.snapshotEvents())
     if (agent.status === 'idle') this.retryHealth.clear(agent.id)
@@ -349,7 +364,7 @@ export class Sessions {
     }
     const ticketId = parent === undefined ? undefined : ticketOfSession(parent)
     if (ticketId === undefined || !this.host.store.tickets.get(ticketId)) return
-    this.bindings.set(agent, { disposers: this.workOnly(agent, ticketId), subagent: true })
+    this.bindings.set(agent, { disposers: this.workOnly(agent, ticketId), subagent: true, ticketId })
   }
   /** Register the skills of a prompt version in the agent's skill scope, in place of an earlier version's. */
   private bindSkills(binding: SessionBinding, version: PromptVersion): void {

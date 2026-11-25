@@ -6,7 +6,7 @@ import { decisionMark, reportDot, ticketMark } from './marks.ts'
 import { usePanel } from './provider.tsx'
 import { settingsRoute } from './route.ts'
 import { Earlier, ThreadLine, automatedRuns } from './rows.tsx'
-import { actorName, localized, readableMarkers, reasonLabel, valueLabel, when } from './text.ts'
+import { actorName, formatCount, formatTokens, localized, readableMarkers, reasonLabel, valueLabel, when } from './text.ts'
 import { ActionLink, ConfirmButton, ExternalLink, Hint, KeyValues, LabelValue, LoadState, MarkdownLite, PageHead, Section, SessionButton,
   StageMark, When } from './widgets.tsx'
 
@@ -139,6 +139,10 @@ export function TicketPage({ id }: { id: string }) {
       <LabelValue label={t('ticketMandateLabel')} value={valueLabel(t, 'strength', data.mandate.strength)} />
       <LabelValue label={t('ticketActorLabel')} value={`${valueLabel(t, 'source', data.mandate.actor.source)} · ${actor}`} />
       <LabelValue label={t('ticketUpdatedLabel')} value={when(data.updatedAt, t('lang'))} />
+      {data.usage && <LabelValue label={t('tokensLabel')} value={formatTokens(data.usage.totalTokens, t('lang'))}
+        title={t('tokensTitle', { input: formatCount(data.usage.inputTokens, t('lang')), output: formatCount(
+          data.usage.outputTokens, t('lang')), cacheRead: formatCount(data.usage.cacheReadTokens, t('lang')), cacheWrite:
+          formatCount(data.usage.cacheWriteTokens, t('lang')), steps: data.usage.steps })} />}
     </div>
     {ended && <Hint>{ended}</Hint>}
     {data.attention && <div className="dt-banner"><span className="dt-banner-label">{t('attentionPrefix')}</span><MarkdownLite
@@ -181,6 +185,16 @@ export function TicketPage({ id }: { id: string }) {
       {data.inputs.length > undelivered.length && <Details icon="inbox" title={t('deliveredInputs',
         { count: data.inputs.length - undelivered.length })}>
         <InputList inputs={data.inputs.filter(input => input.delivered)} />
+      </Details>}
+      {data.usage && <Details icon="hash" title={t('tokenUsage')}>
+        <KeyValues rows={[[t('tokenInput'), formatCount(data.usage.inputTokens, t('lang'))],
+          [t('tokenOutput'), formatCount(data.usage.outputTokens, t('lang'))],
+          [t('tokenTotal'), formatCount(data.usage.totalTokens, t('lang'))],
+          [t('tokenCacheRead'), formatCount(data.usage.cacheReadTokens, t('lang'))],
+          [t('tokenCacheWrite'), formatCount(data.usage.cacheWriteTokens, t('lang'))],
+          [t('tokenReasoning'), formatCount(data.usage.reasoningTokens, t('lang'))],
+          [t('tokenSteps'), data.usage.steps],
+          [t('ticketUpdatedLabel'), when(data.usage.updatedAt, t('lang'))]]} />
       </Details>}
       <Details icon="hash" title={t('identifiers')}>
         <KeyValues rows={[[t('ticketId'), <span className="dt-mono">{data.id}</span>], [t('executionDirectory'), <span

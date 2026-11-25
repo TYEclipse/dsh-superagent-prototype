@@ -3,6 +3,7 @@
 import { act } from 'react'
 import { expect, it } from 'vitest'
 import { en, zh } from '../src/client/locales.ts'
+import { formatTokens } from '../src/client/text.ts'
 import { usePanel, mount, remount, all, find, tab, click, type, text, field, at } from './fixtures/panel.tsx'
 import { MEMBER, server, ticketSummary, threadSummary } from './fixtures/panel-server.ts'
 
@@ -38,6 +39,21 @@ it('lists Tickets under Execution by who they wait on, with the Executor state a
   await click(tab(zh['tab.settings']))
   await click(zh.save)
   expect(server.settings).toMatchObject({ paused: true, executor: { maxWorkers: 4 } })
+})
+
+it('shows a Ticket\'s reported token usage on its row, status line, and usage disclosure', async () => {
+  const usage = { inputTokens: 1_200, outputTokens: 300, totalTokens: 1_500, cacheReadTokens: 800, cacheWriteTokens: 40,
+    reasoningTokens: 90, steps: 2, updatedAt: '2026-09-23T00:00:00Z' }
+  server.tickets.open = [ticketSummary({ usage })]
+  server.ticketDetails.t1 = { ...server.ticketDetails.t1!, usage }
+  await mount()
+  await click(zh['tab.execution'])
+  expect(all('.dt-ticket-meta .dt-lv').map(item => item.textContent)).toContain(`${zh.tokensLabel} ${formatTokens(1_500, 'zh')}`)
+  await click(all('.dt-open').find(button => button.textContent === '修复回归')!)
+  expect(all('.dt-status-line .dt-lv').map(item => item.textContent)).toContain(`${zh.tokensLabel} ${formatTokens(1_500, 'zh')}`)
+  await click(zh.tokenUsage)
+  expect(all('.dt-disclosure[data-open] .dt-kv dd').map(item => item.textContent)).toEqual(['1,200', '300', '1,500', '800', '40', '90',
+    '2', expect.stringContaining('9月23日')])
 })
 
 it('stops an open Ticket from its page after confirmation', async () => {

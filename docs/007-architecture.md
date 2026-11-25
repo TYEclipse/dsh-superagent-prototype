@@ -330,9 +330,10 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/app/prompts.ts` | Prompts, `builtInParts`, the built-in parts a team may override, and `promptParts`, the order of a role's prompt sections |
 | `src/app/context.ts` | The built-in prompt text, read from `prompts/`, and the transcript entries Sessions read |
 | `src/app/skill-files.ts` | Packaged text: `promptFile`, which joins a file's one-sentence lines into paragraphs, and the bundled skills |
-| `src/app/sessions.ts` | Sessions |
+| `src/app/sessions.ts` | Sessions: creates and decorates them, delivers messages, and tracks model-budget retries, no-progress loops and per-Ticket token usage |
 | `src/app/delivery.ts` | `AgentDelivery`: delivers a message to a DeepSeek Harness agent once per request id, also across a restored Session |
 | `src/app/retry-health.ts` | `RetryHealth`: which Sessions wait on a model budget retry, for the `models` health entry |
+| `src/app/usage.ts` | Per-Ticket token accounting: `addUsage` adds one host usage report idempotently per Session event, `ticketUsage` reads the totals the panel shows, and `usageTotals` strips the sequence bookkeeping |
 | `src/app/role-models.ts` | Resolves the Eval and Executor models, and seeds a new Session with its role's model |
 | `src/app/assessment.ts` | The MasterAssessor, the assessment schema and the window `orchestrator_eval` answers |
 | `src/app/execution-environment.ts` | The execution environment: its variables, a Ticket's values, the directory root and the lines of the prompt section, which `src/app/prompts.ts` fills into its template |
@@ -436,6 +437,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/health.spec.ts` | One health entry per part, each cleared by its own next success |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
+| `tests/usage.spec.ts` | Per-Ticket token accounting: every host counter, missing totals, replayed and older sequences, separate Sessions, malformed values, and the display shape the Store backs |
 | `tests/runtime.spec.ts` | The whole application on a simulated DeepSeek Harness host, through tools and HTTP |
 | `tests/tools.spec.ts` | The Sessions' tools: what `orchestrator_read` reads for each role, and the shapes and checks of the other main Session tools |
 | `tests/runtime-concurrency.spec.ts` | Work that overlaps: Triggers during a pass, Tickets that change during deliveries and launches |
@@ -487,6 +489,7 @@ A generated column is computed from its row's JSON and is empty outside its set,
 | Prompt versions | `prompt-revision`, `prompt-version:<n>` |
 | Main Session | `master-id` |
 | Session prompt history | `session-prompts:<session id>` |
+| Ticket token usage | `usage-ticket:<ticket id>`: the totals of the Ticket's worker and subagent model steps, and each Session's last counted event sequence |
 | Source state | Read positions such as `github-cursor:<number>`, PR CI fingerprints and seen Feishu-topic messages; keys begin with the kind or `thread-` plus a Thread key |
 | Display names | `source-labels:<source id>` |
 
@@ -494,7 +497,7 @@ Dismissal is stored on its Decision. Input text is rendered from the Ticket when
 
 Read caches use bounded in-memory `TextCache` instances and are lost on restart. A Session paging through an original Source record or prompt preview must reread offset 0 after a restart. Feishu links resolved after intake are cached the same way; link-based search finds them only after that link has been read during the current process lifetime.
 
-Nothing deletes old records yet, so these grow without bound: the `trigger`, `disposition` and `decision` rows; ended Tickets and their Threads; the outbox's receipts; and in `kv`, every saved settings revision and prompt version, the prompt revisions each Session worked under, and the Sources' records per Thread and per Issue or pull request.
+Nothing deletes old records yet, so these grow without bound: the `trigger`, `disposition` and `decision` rows; ended Tickets and their Threads; the outbox's receipts; and in `kv`, every saved settings revision and prompt version, the prompt revisions each Session worked under, the per-Ticket usage records, and the Sources' records per Thread and per Issue or pull request.
 
 `SCHEMA_VERSION` only increases. A database of a newer version refuses to start; `src/app/migration.ts` upgrades a database of the pre-release schema 10 once, at start, and refuses an older one.
 

@@ -5,7 +5,7 @@
 - **日期：** 2026-11-24（Asia/Shanghai）
 - **分支：** `agent/self-evolve-loop-60b58299770e`
 - **起点：** `main` `d6ffbd2`（v0.2.1）
-- **状态：** 实现与本地闸门已通过；PR、合并、release 与重载见 §8，按轮次对账补齐。
+- **状态：** 实现、本地闸门、PR、合并与 release 已完成；部署随第 2 轮完成，见 §8。
 
 ## 1. 结论
 
@@ -123,7 +123,8 @@
 
 ## 8. 落地与下一轮
 
-- **PR：** 待创建（本轮分支 `agent/self-evolve-loop-60b58299770e`；代码提交 `b3d0540`，安装验证 receipt 对应该提交）。
-- **合并提交 / release：** 合并后由 release job 自动发 patch 版本；下一轮对账时补上 tag 与 release URL。
-- **部署与重载：** 合并后把部署的 `link:` 检出更新到 release 提交，`pnpm install --frozen-lockfile && pnpm build`，写新的 `# Reload trigger` 注释触发 HMR，并用管理 API 验证 `health.runtime.state`、`setup.problem`、parts 与 HEAD；证据写进下一轮对账。
-- **下一轮：** 先完成本轮对账；然后按新的调研重新排序候选。当前候选：GAP-05（小写 cookie 头脱敏，安全边界，改动小）；静默看门狗（需要产品决定超时语义，若无决定则不做）；token/费用账本（需要 host 用量来源与展示面）。不得为了「有东西可做」而降低闸门或跨范围。
+- **PR：** [#21](https://github.com/TYEclipse/dsh-superagent-prototype/pull/21)，分支 `agent/self-evolve-loop-60b58299770e`，head `6327f98`；代码提交 `b3d0540`（安装验证 receipt 对应该提交），后续提交是 Linux 覆盖率基线与文档。
+- **合并提交 / release：** 合并提交 `87b435d`（2026-11-24T15:28:07Z）；release job 在该提交上发布 **v0.2.2**，release 提交 `4316a85`（2026-11-24T15:29:22Z），tag 指向它。
+- **CI：** PR run `45425138750` 的 `check` 通过（1m6s），其 `coverage` artifact 给出了 Linux 高水位 `94.62 / 86.65 / 93.89 / 97.56`；合并后的 `main` push CI 也通过。
+- **部署与重载：** v0.2.2 没有单独部署：本机桌面 profile 的 `link:` 检出当时仍停在 `09c762d`（PR #18）。第 2 轮在部署分支构建时把 v0.2.2 一起带上，并在第 2 轮的「部署与重载」中验证；因此本轮的运行时改动首次生效于第 2 轮的部署，而不是一个独立的 v0.2.2 重载。
+- **下一轮：** 第 2 轮按新的调研重新排序候选，选中「每张工单的 token 用量台账」；watchdog（需要产品决定超时语义）、GAP-05、GAP-04 与任务级评测留在 [round-2](round-2.md) §8。不得为了「有东西可做」而降低闸门或跨范围。
