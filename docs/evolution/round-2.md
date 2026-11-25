@@ -108,9 +108,11 @@ host 已经按 step 报告 usage，`Sessions` 已经是唯一消费 `session/eve
 - `tests/docs.spec.ts`：新模块与新测试已列入 007 的表。
 - `pnpm check`：exit 0；1,279 passed / 42 skipped；覆盖率 statements 93.17、branches 85.76、functions 93.13、lines 96.27（win32-x64），高于记录值 93.13 / 85.68 / 93.08 / 96.22；`coverage ratchet: ok`；`lib/index.js` 472.05 kB（构建前 468.58 kB）。
 - `pnpm verify:install -- --dsh C:/Users/tyecl/.dsh/state/superagent-desktop/work/.tools/dsh-0.2.2-rc.1/node_modules/@deepseek-ai/dsh/lib/bin.js`：13/13 项通过（DSH 0.2.2-rc.1，一次性 profile，面板 API 200、setup `repositoryUnset`、数据库与两个 preset 均就位）；receipt 在提交后重跑并记录代码提交。
-- 本地 UI 证据：桌面 profile 的工单页修改前后截图；修改前状态行没有 Token 用量，修改后有 chip 与折叠分解。截图与 PR 一起提交在 `docs/evolution/assets/round-2-*.png`。
-
-待补：PR CI、release 与重载的最终证据（见 §8）。
+- **Linux 覆盖率**：PR 第一次 CI（run `45626585298`，`d0b0114`）的 `coverage` artifact 为 statements 94.66、branches 86.71、functions 93.95、lines 97.60；已用 `node scripts/coverage-ratchet.mjs --update --summary <artifact>/coverage-summary.json --platform linux-x64` 抬高基线，第二次 CI（run `45626957753`，`20e6ba1`）通过。
+- **PR CI**：`45626585298`（`check` 1m6s）与 `45626957753` 均为 success；PR 为草稿，合并前会标为可评审。
+- **桌面 profile 安装与重载**：把链接检出切到 `20e6ba1`，在**该检出内**运行 `pnpm install --frozen-lockfile && pnpm build`；`lib/index.js` 的 SHA-256 为 `AD12CBA21DF2EB4ECDCFAA0ED180A17D77102939CC82D3645A7C38837AD8E61F`，`lib/client.js` 为 `15C7544668694A44FEA886FDF64AA72A5F15294EE8A6BEFF49AA6EC74546F3F1`。该 profile 没有启用 `dsh-hmr`（只有 `cordis.patch.yml` 注释的改动不会触发重载，runtime 时间仍停在 2026-11-23T18:28:15Z），因此关闭并重启了桌面 app。第一次重启加载的是在**错误工作目录**（工单目录）里构建的产物，缺少 `usage-ticket`；重新在部署检出内构建后第二次重启，加载了上述 hash 的产物。
+- **重载后状态**（`2026-11-25T14:03:20Z` 起）：`GET /orchestrator/api/state` 返回 `health.runtime.state = ready`、`setup.problem = null`；Feishu 与 history 为 ready；GitHub source 在检查时为 `starting`（无 error，轮询循环尚未完成第一轮）。本次工单页显示 `Token 用量 533.3万`，`GET tickets/:id` 的 `usage` 记录含 `steps` 与 input/output/cache/total；重启中断了 Assignment，Executor 按恢复路径启动了第 3 次 Assignment。
+- **前后截图**：`docs/evolution/assets/round-2-before.png`（部署中的旧构建，状态行没有 Token 用量）与 `docs/evolution/assets/round-2-after.png`（`20e6ba1` 构建，状态行显示 `Token 用量 533.3万`）。两张图同一工单页、同一深色主题、同一视口与裁切；修改前为部署基线 `09c762d`，修改后为 PR 分支 `20e6ba1`。
 
 未验证：没有真实账单或价格表，因此没有验证金额；没有注入一个「三倍 token」的异常工单，因此没有验证异常检测；没有回填历史工单。
 
@@ -123,13 +125,14 @@ host 已经按 step 报告 usage，`Sessions` 已经是唯一消费 `session/eve
 - **记录无界增长。** 每个有 usages 的工单留下一个 KV 记录；与现有的 trigger、decision、outbox 一样，暂无保留策略。记录本身很小，但仍是增长面。
 - **没有预算或异常检测。** 台账是前置条件，不是「防止跑飞」；把阈值、告警或自动停止接进来需要单独的产品决定。
 - **UI 紧凑格式因语言而异。** 中文的 `1.2万` 与英文的 `12K` 都是本地化显示；精确值在悬停与折叠区。
+- **该桌面 profile 没有启用 HMR。** 改 `cordis.patch.yml` 的注释不会触发重载；升级需要关闭并重启桌面 app，因而中断当前 Assignment。构建必须在链接检出内执行：本轮第一次在工单目录构建，产物缺少新代码，第二次修正后才通过 hash 验证。这是流程风险，不是代码风险。
 - **不改变授权边界。** 本轮没有改 Policy、Mandate、admission、permission preset、部署账户或密钥设置。
 
 ## 8. 落地与下一轮
 
-- **PR：** 待创建（分支 `agent/self-evolve-single-9efbb381146d`）。
-- **合并提交 / release：** 合并后由 release job 自动发 patch 版本；最终 tag、合并提交与 release URL 记录在 PR 描述与工单报告中。
-- **部署与重载：** 在合并前把分支构建安装到桌面 profile 并重载验证（同一份运行时字节），合并后把部署检出更新到 release 提交并复核；证据写在 PR 描述与工单报告中。这样做是因为每次 push 到 `main` 都会触发一次 release，若在合并后再补一次文档提交会产生第二个 release，因此记录在合并前写完。
+- **PR：** [#22](https://github.com/TYEclipse/dsh-superagent-prototype/pull/22)，分支 `agent/self-evolve-single-9efbb381146d`；本轮证据提交前 head `20e6ba1`，CI 已通过。
+- **合并提交 / release：** 证据提交与 CI 绿后，用部署规则点名的命令开启自动合并；合并后 release job 自动发 patch 版本。最终 tag、合并提交与 release URL 记录在 PR 描述与工单报告中；这里不再追加一次文档 push，因为每次 `main` push 都会产生一个新 release。
+- **部署与重载：** 已在合并前把分支构建安装到桌面 profile 并重启验证（`runtime.ready`、`setup.problem=null`、工单页显示 Token 用量；见 §6）。合并后把部署检出更新到 release 提交并重建，比较 `lib/` hash 与已加载的 `AD12CBA2…`，用管理 API 复核；若 release 提交只改版本号与文档，运行时字节应保持不变。
 - **下一轮：** 若人决定继续，优先候选是：
   1. 工作回合的静默停滞 watchdog：需要先决定「停滞多久、中断后算什么」；外部证据（hermes turn_liveness）已经足够强。
   2. 把台账接到预算/告警：需要产品决定阈值与超限行为，以及是否按模型计价。
