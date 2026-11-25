@@ -1,9 +1,11 @@
 /** Lifecycle, prompt/tool/skill decoration, message delivery, and budget retry tracking for orchestrator and worker DSH sessions. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-working-directory'
 import type { MessageId } from '@deepseek-ai/dsh-llm'
 import { scopeParentOf } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { z } from 'zod'
 import { key, liveTicket, type Ticket } from '../core/index.ts'
@@ -26,6 +28,8 @@ import type { RegisterTool, Tool } from './tools/tool.ts'
 export interface SessionsHost {
   /** DSH Cordis context: sessions, agents, persistence, and their events. */
   readonly context: Context
+  /** The one DSH workspace every managed Session belongs to; a worker works in its own directory inside it. */
+  readonly workspace: string
   readonly store: Pick<Store, 'tickets' | 'settings' | 'get' | 'set' | 'keys'>
   readonly prompts: Pick<Prompts, 'current' | 'version' | 'compose' | 'skills'>
   readonly effects: Pick<Effects, 'enqueue' | 'handle' | 'idle' | 'pending'>
@@ -187,18 +191,31 @@ export class Sessions {
     const next = addUsage(previous, { session: agent.id, seq: event.seq, time: event.time, usage: event.data.usage })
     if (next) this.host.store.set(KV.usage.ticket(binding.ticketId), next)
   }
-  /** Resolves or creates session `id` in workspace `cwd`, initializes its role model, decorates it with prompts/skills/tools, sets `danger-full-access` permissions, and renames it to `title`. */
+  /**
+   * Resolves or creates session `id` in the plugin's one DSH workspace, initializes its role model, decorates it with
+   * prompts/skills/tools, sets `danger-full-access` permissions, and renames it to `title`.
+   * A worker's `cwd` is its Ticket directory: the Session stays in the shared workspace, which keeps every Task together
+   * in the Workspace browser, and its effective working directory is set to that directory, where its tools and shell run.
+   */
   async ensure(id: string, cwd: string, title: string, role: 'orchestrator' | 'worker'): Promise<Agent> {
     const ctx = this.ctx
+    const workspacePath = this.host.workspace
     let result = await ctx.sessionController.resolveAgent(id as SessionId)
     if ('error' in result && result.error.code === 'session/not-found') {
-      const workspace = await ctx.workspaceRegistry.create(cwd)
+      // Repeated calls return the existing workspace, so every Session of the plugin shares one Workspace browser entry.
+      const workspace = await ctx.workspaceRegistry.create(workspacePath)
       // A Session keeps the preset it was created with, one of the bundle's own (cordis.patch.yml).
       await ctx.sessionController.create({ sessionId: id as SessionId, workspaceId: workspace.id,
         agentPreset: role === 'worker' ? WORKER_PRESET : ROUTER_PRESET })
       result = await ctx.sessionController.resolveAgent(id as SessionId)
     }
     if ('error' in result) throw result.error
+    // A worker works in its Ticket directory, which DSH records as the Session's working directory; the Session's
+    // immutable cwd, the shared workspace, keeps its Workspace membership. DSH's subagents inherit this directory.
+    if (role === 'worker' && cwd !== workspacePath) {
+      await mkdir(cwd, { recursive: true })
+      await ctx.workingDirectory.set(result.agent, cwd)
+    }
     const settings = this.host.store.settings()
     await initializeRoleModel(ctx, result.agent, role === 'orchestrator' ? settings.eval.model : settings.executor.model)
     await this.decorate(result.agent)
