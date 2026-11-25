@@ -4,7 +4,7 @@
 >
 > We have adapted it for publication, so it is not identical to our internal version or the implementation described in *Exploring Super-agent Design: Towards a More Autonomous Agent System*. Some designs discussed in the article are directions for future development and are not implemented in this prototype.
 
-> **Fork notice:** this copy is a community fork, not from DeepSeek. It targets DeepSeek Harness `0.2.2-rc.1` and adds native-Windows path support; see [FORK-NOTES.md](FORK-NOTES.md) for the change list, install steps and known limits.
+> **Fork notice:** this copy is a community fork, not from DeepSeek. It targets DeepSeek Harness `0.2.2-rc.2` or later (verified on `0.2.2-rc.5`) and adds native-Windows path support; see [FORK-NOTES.md](FORK-NOTES.md) for the change list, install steps and known limits.
 
 dsh-superagent is a proactive coding agent for one GitHub repository, packaged as a bundle for [DeepSeek Harness](https://www.deepseek.com/en/harness/). It listens to GitHub and, optionally, Feishu. When an allowed person asks the agent for work, it opens a work item, works on it in its own agent session and directory, and answers in the original conversation, for example with a pull request. A web panel shows what needs a person.
 

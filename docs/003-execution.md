@@ -46,7 +46,7 @@ The Executor observes each worker's and subagent's session events for tool calls
 
 The guard never denies a call, ends a turn or reports for the worker: it adds information to the Session, and the worker's own report still decides the Ticket. It reads the same session events that model-retry health uses and needs no schema, setting or prompt. The main Session is not tracked; its tools are read-only.
 
-When an Assignment ends, its shell jobs are killed without waking the Session. Its subagents are released, and any completion turns they wake are dropped. The replacement Assignment and its waiting Inputs start after that shutdown finishes.
+When an Assignment ends, its shell jobs are killed without waking the Session. Its subagents are stopped, and any completion turns they wake are dropped. The replacement Assignment and its waiting Inputs start after that shutdown finishes.
 
 Stopping or restarting the plugin inside the DeepSeek Harness process uses the same shutdown path. Inputs not yet taken into Session history are retained. Shutdown waits up to 10 seconds for each worker's background work; a process restart ends that work outright. An Assignment interrupted while busy restarts with a recovery note.
 
