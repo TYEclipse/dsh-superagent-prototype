@@ -433,6 +433,36 @@ describe('github source', () => {
     expect(pullEndNotices(h.store.tickets.get('t1')!, request.text, 'acme/widgets').map(notice => notice.id)).toEqual(notices.map(notice => notice.id))
     h.store.close()
   })
+  it('deletes a merged agent PR\'s branch once, and keeps a failure on the PR until a later poll deletes it', async () => {
+    const h = host()
+    for (const number of [9, 10, 11]) subscribed(h, { source: 'github', id: String(number) }, { number, isPr: true })
+    const calls: string[][] = []
+    const run = vi.spyOn(h.commands, 'run').mockImplementation(async (_program, args) => { calls.push(args); return '{}' })
+    const merged = (number: number, ref = 'agent/one', repository = 'acme/widgets'): Pull => ({ ...agentsPull(number, ref), state: 'closed', merged: true,
+      merged_at: '2026-09-02T00:00:00Z', head: { sha: 'abc', ref, repo: { full_name: repository } } })
+    expect(await observePull(h, merged(9))).toBe(true)
+    expect(calls).toEqual([['api', 'repos/acme/widgets/git/refs/heads/agent/one', '-X', 'DELETE']])
+    // The branch is deleted once, not on every poll of the PR's Thread.
+    await observePull(h, merged(9))
+    expect(calls).toHaveLength(1)
+    // An already-deleted branch (422) is deleted, and says nothing on the PR.
+    run.mockRejectedValueOnce(refused(422, 'Reference does not exist'))
+    expect(await observePull(h, merged(10, 'agent/two'))).toBe(true)
+    expect(h.store.threads.get('github:10')!.meta.facts).not.toHaveProperty('branch')
+    // Another failure stays on the PR for a later poll to retry, and goes away once that poll deletes the branch.
+    run.mockRejectedValueOnce(refused(403, 'Resource not accessible by integration'))
+    expect(await observePull(h, merged(11, 'agent/three'))).toBe(true)
+    expect(h.store.threads.get('github:11')!.meta.facts).toMatchObject({ branch: { label: { zh: '分支未删除', en: 'Branch not deleted' }, problem: true,
+      value: expect.stringContaining('403') } })
+    expect(await observePull(h, merged(11, 'agent/three'))).toBe(true)
+    expect(h.store.threads.get('github:11')!.meta.facts).not.toHaveProperty('branch')
+    // A PR the agent did not open from this repository leaves its branch alone.
+    calls.length = 0
+    await observePull(h, endedPull(12, '2026-09-02T00:00:00Z'))
+    await observePull(h, merged(13, 'agent/four', 'someone/widgets'))
+    expect(calls).toEqual([])
+    h.store.close()
+  })
   it('keeps a ticket working on its other open PR when one of its PRs merges', async () => {
     const h = host()
     h.store.tickets.save({ id: 't3', title: 'three', decisionId: 'd3', mandate: { strength: 'explicit', policyVersion: '', basis: { via: 'listed' }, actor: { source: 'feishu', id: MEMBER }, scope: '' }, channels: [], assignments: [{ id: 'a1', state: 'running', createdAt: '2026-09-01T00:00:00Z' }], inputs: [], undelivered: [], execution: execution('fix-3'), origin: { triggerId: 'x', triggerIds: [] }, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' })
