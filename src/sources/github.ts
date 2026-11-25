@@ -376,7 +376,7 @@ async function readNotified(ctx: SourceContext, round: Round, number: number, it
 function pull(ctx: SourceContext, round: Round, number: number): Promise<Pull> {
   let read = round.pulls.get(number)
   if (!read) {
-    read = readPull(ctx, number, round.signal).then(async pr => { await observePull(ctx, pr); return pr })
+    read = readPull(ctx, number, round.signal).then(async pr => { await observePull(ctx, pr, round.signal); return pr })
     round.pulls.set(number, read)
   }
   return read

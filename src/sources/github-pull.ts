@@ -2,7 +2,9 @@
 import { z } from 'zod'
 import { key, liveTicket, type Follow, type OutboundMessage, type ThreadFact, type Ticket } from '../core/index.ts'
 import type { Deployment } from '../deployment.ts'
+import { CliError, type Commands } from '../infra/commands.ts'
 import { sameName } from '../infra/text.ts'
+import { KV } from '../kv.ts'
 import type { SourceContext } from './host.ts'
 import { githubPage, SOURCE, UserSchema } from './github-trigger.ts'
 
@@ -27,6 +29,29 @@ export const agentPull = (pr: { user: { login: string }; head?: { repo?: { full_
 export const ticketBranch = (ticket: Pick<Ticket, 'execution'>, ref: string): boolean =>
   !!ticket.execution?.name && ref.split('/').at(-1) === ticket.execution.name
 const AUTO_MERGE_ON: ThreadFact = { label: { zh: '自动合并', en: 'Auto-merge' }, value: { zh: '已开启', en: 'on' } }
+/** The latest PRs whose merged branch was deleted; older numbers are forgotten because their Threads stop being polled. */
+const BRANCH_REMOVED_LIMIT = 500
+const branchNotDeleted = (error: string): ThreadFact =>
+  ({ label: { zh: '分支未删除', en: 'Branch not deleted' }, value: error, problem: true })
+/** GitHub API path of a branch, keeping its `/` separators while encoding any other character. */
+const branchPath = (ref: string): string => `git/refs/heads/${ref.split('/').map(encodeURIComponent).join('/')}`
+/**
+ * Deletes the head branch of a merged PR that the agent opened from the configured repository, so finished work leaves
+ * no branch behind. A branch GitHub already deleted (422 or 404) counts as deleted, and a deleted number is not deleted
+ * again. Any other failure is returned for the PR's Thread to show, and a later poll tries again.
+ */
+async function deleteMergedBranch(ctx: SourceContext, pr: Pull, commands: Commands): Promise<string | undefined> {
+  if (!agentPull(pr, ctx.deployment)) return undefined
+  const removed = ctx.state.get(KV.github.branchRemoved) ?? []
+  if (removed.includes(pr.number)) return undefined
+  try { await commands.api(branchPath(pr.head.ref), '-X', 'DELETE') }
+  catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') return undefined
+    if (!(error instanceof CliError) || (error.code !== 422 && error.code !== 404)) return String(error)
+  }
+  ctx.state.set(KV.github.branchRemoved, [...removed, pr.number].slice(-BRANCH_REMOVED_LIMIT))
+  return undefined
+}
 
 /**
  * Validates and binds an open PR to a ticket when the PR is either the ticket's origin PR or an agent-authored PR on the ticket's branch, enforcing that one PR binds to at most one open ticket.
@@ -51,10 +76,11 @@ export function claimPull(ctx: SourceContext, ticketId: string, pr: Pull): strin
 /**
  * Reconciles a polled PR's open/merged/closed state and auto-merge fact with any bound or branch-matching ticket.
  * An open agent PR auto-binds to the single open ticket on its branch unless that ticket already follows another open PR
- * (which only the Executor's report changes).
+ * (which only the Executor's report changes). A merged agent PR's head branch is deleted, so finished work leaves no
+ * branch behind.
  * @returns whether the PR has ended.
  */
-export async function observePull(ctx: SourceContext, pr: Pull): Promise<boolean> {
+export async function observePull(ctx: SourceContext, pr: Pull, signal?: AbortSignal): Promise<boolean> {
   const ended = pr.state === 'closed' || !!pr.merged
   if (ended) closePull(ctx, pr)
   else {
@@ -65,6 +91,10 @@ export async function observePull(ctx: SourceContext, pr: Pull): Promise<boolean
     if (ticket && (reopened || pullsOf(ticket, true).every(number => number === pr.number))) claimPull(ctx, ticket.id, pr)
   }
   ctx.threads.describe(`github:${pr.number}`, { facts: { autoMerge: !ended && pr.auto_merge != null ? AUTO_MERGE_ON : null } })
+  if (ended && pr.merged) {
+    const error = await deleteMergedBranch(ctx, pr, ctx.commands.withSignal(signal))
+    ctx.threads.describe(`github:${pr.number}`, { facts: { branch: error ? branchNotDeleted(error) : null } })
+  }
   return ended
 }
 function bind(ctx: SourceContext, ticketId: string, pr: Pull, own: boolean): void {
