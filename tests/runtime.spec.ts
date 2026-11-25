@@ -77,6 +77,8 @@ async function receive(trigger: Trigger, target = runtime) {
   return result
 }
 let services: Record<string, unknown>
+/** DSH's session working directories, which every worker Session's Ticket directory is set on. */
+let workingDirectory: { set: ReturnType<typeof vi.fn> }
 /** DSH's job registry the Runtime's Executor reads its workers' shell jobs from. */
 let jobs: ReturnType<typeof jobRegistry>
 /** What worker commands of the startup checks print, by argv; an Error makes the command fail with its message, and an array answers one call at a time. */
@@ -167,6 +169,7 @@ beforeEach(async () => {
   guards = new Map()
   restricts = new Map()
   deliveries = vi.fn()
+  workingDirectory = { set: vi.fn(async (_agent: unknown, path: string) => path) }
   controller = {
     create: vi.fn(async ({ sessionId, agentPreset }) => {
       if (agents.has(sessionId)) return
@@ -211,7 +214,7 @@ beforeEach(async () => {
     inspect: vi.fn(async () => ({ events: [] })),
   }
   jobs = jobRegistry()
-  services = { agents, llm: { resolveCallConfig: vi.fn(async value => value) }, sessionController: controller, sessionPersistence: { flush: vi.fn(async () => {}), open: vi.fn(async () => ({ read: async () => ({ events: [] }), [Symbol.asyncDispose]: async () => {} })) }, workspaceRegistry: { create: async (cwd: string) => ({ id: cwd }) }, permissionPresets: { set: () => {} }, subprocess, webServer: { host: '127.0.0.1', port: 3082, register: (route: { handler: HttpHandler }) => { http = route.handler; return () => {} } }, jobs: jobs.service }
+  services = { agents, llm: { resolveCallConfig: vi.fn(async value => value) }, sessionController: controller, sessionPersistence: { flush: vi.fn(async () => {}), open: vi.fn(async () => ({ read: async () => ({ events: [] }), [Symbol.asyncDispose]: async () => {} })) }, workspaceRegistry: { create: async (cwd: string) => ({ id: cwd }) }, workingDirectory, permissionPresets: { set: () => {} }, subprocess, webServer: { host: '127.0.0.1', port: 3082, register: (route: { handler: HttpHandler }) => { http = route.handler; return () => {} } }, jobs: jobs.service }
   for (const [name, service] of Object.entries(services)) ctx.reflect.provide(name, service)
   for (const cli of [AGENT(), OTHER(), BOT()]) writeFileSync(cli, '#!/bin/sh\n', { mode: 0o755 })
   const store = new Store(join(directory, 'orchestrator.sqlite')); seed(store); store.close()
@@ -1781,6 +1784,17 @@ it('creates an Executor Session under the bundle\'s worker preset, and the main 
   const created = controller.create.mock.calls.map(([options]) => options as { sessionId: string; agentPreset: string })
   expect(created.find(options => options.sessionId === sessionId)).toMatchObject({ agentPreset: 'dsh-superagent-worker' })
   expect(created.find(options => options.sessionId === runtime.masterId)).toMatchObject({ agentPreset: 'dsh-superagent-router' })
+})
+
+it('puts every Session in the main Session\'s one workspace, and gives a worker its Ticket directory as its working directory', async () => {
+  const { ticket, sessionId } = await acceptedTicket()
+  const created = controller.create.mock.calls.map(([options]) => options as { sessionId: string; workspaceId: string })
+  // The main Session and every Executor Session share the state directory's workspace, not a workspace per Ticket.
+  expect(created.find(options => options.sessionId === runtime.masterId)).toMatchObject({ workspaceId: directory })
+  expect(created.find(options => options.sessionId === sessionId)).toMatchObject({ workspaceId: directory })
+  expect(ticket.execution!.directory).not.toBe(directory)
+  // Each worker still works in its own Ticket directory, which DSH's tools and shell use.
+  expect(workingDirectory.set).toHaveBeenCalledWith(agents.get(sessionId), ticket.execution!.directory)
 })
 
 it('steers a worker that repeats the same tool call and result, once per turn', async () => {
