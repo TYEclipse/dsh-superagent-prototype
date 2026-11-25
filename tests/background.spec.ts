@@ -2,15 +2,17 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { expect, it, vi } from 'vitest'
-import { stopSubagents, untilQuiet } from '../src/executor/background.ts'
+import { stopBackground, stopSubagents, untilQuiet } from '../src/executor/background.ts'
+import { failureDetail } from '../src/executor/failure.ts'
 import { jobRegistry } from './fixtures/host.ts'
 
 /** A context with DSH's job registry and subagents, and an idle worker agent with one live subagent, `child-1`. */
-function setup(waitForChildren: (agent: Agent) => Promise<boolean>, drainChildren: () => Promise<void> = async () => {}) {
+function setup(waitForTreeWork: (root: Agent) => Promise<boolean>, interrupt: (id: string, authority: unknown) => void = () => {},
+  listDescendants: (rootSessionId: string) => Promise<readonly { id: string }[]> = async () => [{ id: 'child-1' }]) {
   const jobs = jobRegistry()
   const agent = { id: 'worker-t1', status: 'idle', whenIdle: async () => {}, inbox: { nextTurn: [], nextStep: [] }, cancel: vi.fn() } as unknown as
     Agent & { status: string; cancel: ReturnType<typeof vi.fn> }
-  const subagents = { waitForChildren: vi.fn(waitForChildren), listChildren: async () => [{ id: 'child-1' }], drainChildren: vi.fn(drainChildren) }
+  const subagents = { waitForTreeWork: vi.fn(waitForTreeWork), listDescendants: vi.fn(listDescendants), interrupt: vi.fn(interrupt) }
   const services: Record<string, unknown> = { jobs: jobs.service, subagents }
   const ctx = { get: (name: string) => services[name], agents: { get: () => agent } } as unknown as Context
   return { ctx, agent, jobs, subagents }
@@ -59,11 +61,11 @@ it('joins a worker\'s subagents once for the looks that wait on them, as DSH can
     stop.abort()
     expect(await quiet).toBe(false)
   }
-  expect(subagents.waitForChildren).toHaveBeenCalledTimes(1)
+  expect(subagents.waitForTreeWork).toHaveBeenCalledTimes(1)
 })
 
-it('gives up a release of subagents that does not end within 10 seconds, and cancels the turn their ends woke', async () => {
-  const { ctx, agent } = setup(async () => false, () => new Promise(() => {}))
+it('gives up a stop of subagents that does not end within 10 seconds, and cancels the turn their ends woke', async () => {
+  const { ctx, agent } = setup(() => new Promise(() => {}))
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   try {
     let stopped = false
@@ -73,5 +75,33 @@ it('gives up a release of subagents that does not end within 10 seconds, and can
     await vi.advanceTimersByTimeAsync(1)
     await stopping
   } finally { vi.useRealTimers() }
+  expect(agent.cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: false })
+})
+
+it('stops a worker against DSH\'s current subagent service, which removed the per-child release', async () => {
+  const { ctx, agent, subagents } = setup(async () => false)
+  // DSH 0.2.2-rc.5 exposes waitForTreeWork, listDescendants and interrupt only; the removed names throw.
+  await expect(stopBackground(ctx, 'worker-t1', 'The ticket ended')).resolves.toBeUndefined()
+  expect(subagents.listDescendants).toHaveBeenCalledWith('worker-t1')
+  expect(subagents.interrupt).toHaveBeenCalledWith('child-1', { kind: 'ancestor', agent })
+  expect(agent.cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: false })
+})
+
+it('cancels no turn when a worker has no live subagent to stop', async () => {
+  const { ctx, agent, subagents } = setup(async () => false, undefined, async () => [])
+  await stopBackground(ctx, 'worker-t1', 'The ticket ended')
+  expect(subagents.interrupt).not.toHaveBeenCalled()
+  expect(agent.cancel).not.toHaveBeenCalled()
+})
+
+it('interrupts every live subagent when one fails, still cancels the turn, and keeps the inner failure', async () => {
+  const interrupted: string[] = []
+  const { ctx, agent } = setup(async () => false, id => {
+    interrupted.push(id)
+    if (id === 'child-1') throw new Error('the first child is already gone')
+  }, async () => [{ id: 'child-1' }, { id: 'child-2' }])
+  const error: unknown = await stopBackground(ctx, 'worker-t1', 'The ticket ended').catch((failure: unknown) => failure)
+  expect(interrupted).toEqual(['child-1', 'child-2'])
+  expect(failureDetail(error)).toContain('the first child is already gone')
   expect(agent.cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: false })
 })

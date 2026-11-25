@@ -7,6 +7,11 @@ describes the prototype as research code, not an official DeepSeek product;
 this fork keeps that status and only adapts the bundle to a newer DeepSeek
 Harness release line.
 
+**Current target (2026-11-25):** `engines.dsh` is `^0.2.2-rc.2`, because DSH
+removed the subagent methods the Executor used up to that release; the install
+this repository is verified against is `0.2.2-rc.5`. The table below records the
+fork's original target at import time.
+
 ## Target
 
 | Component | Version |
@@ -107,6 +112,17 @@ by this fork; use the upstream repository for those.
   Report, a person's retry or a resumed Ticket clears the count. The Ticket
   carries the optional `recoveries` field in its JSON value, so no schema
   migration is involved. See [016](docs/016-bounded-host-restart-zh.md).
+- `fix(executor): stop worker subagents with DSH 0.2.2-rc.2's service` — DSH
+  removed `waitForChildren`, `listChildren` and `drainChildren` after
+  `0.2.2-rc.1`, so every stop of a loaded worker ended in the health error
+  `AggregateError: Stopping the background work of worker-… failed`. The stop
+  now lists the worker's descendants, interrupts each live one, and joins the
+  tree's work (`waitForTreeWork`) before cancelling the turn; it does not use
+  `drainDescendants`, which closes a parent's subagent admission until that
+  parent is disposed and would break a Ticket a person resumes later. The
+  worker health detail now prints the individual failures of an
+  `AggregateError` instead of only its wrapper message. `engines.dsh` starts at
+  `^0.2.2-rc.2`; the path is verified on `0.2.2-rc.5`.
 - `test(coverage): gate the suite with v8 coverage` — `@vitest/coverage-v8` is
   pinned to the Vitest version, and `pnpm test:coverage` writes `coverage/`
   (text, JSON summary and HTML). `pnpm check` now runs the suite under that gate

@@ -56,3 +56,27 @@ export function classifyFailure(error: unknown): Failure {
   if (status === 408 || NETWORK.test(text)) return { kind: 'network', retryable: true, ...hint }
   return { kind: 'unknown', retryable: false }
 }
+
+/**
+ * One line for a failure, keeping the separate failures an AggregateError collected and the causes chained with
+ * `cause`. `String(error)` prints only the wrapper's message, which hides why a stop or a teardown failed.
+ */
+export function failureDetail(error: unknown): string {
+  const seen = new Set<unknown>()
+  const describe = (value: unknown): string => {
+    if (!(value instanceof Error)) {
+      try { return String(value) } catch { return Object.prototype.toString.call(value) }
+    }
+    const name = typeof value.name === 'string' && value.name ? value.name : 'Error'
+    const message = typeof value.message === 'string' ? value.message : ''
+    const head = message ? `${name}: ${message}` : name
+    if (seen.has(value)) return head
+    seen.add(value)
+    const nested = [
+      ...(value instanceof AggregateError ? value.errors : []),
+      ...(value.cause === undefined ? [] : [value.cause]),
+    ]
+    return nested.length ? `${head} (${nested.map(describe).join('; ')})` : head
+  }
+  return describe(error)
+}

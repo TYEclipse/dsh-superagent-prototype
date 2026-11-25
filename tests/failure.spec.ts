@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyFailure } from '../src/executor/failure.ts'
+import { classifyFailure, failureDetail } from '../src/executor/failure.ts'
 
 describe('failure classification', () => {
   it('retries passing network, rate-limit, overload and server failures', () => {
@@ -29,5 +29,26 @@ describe('failure classification', () => {
   it('carries the provider retry-after hint when the error mentions one', () => {
     expect(classifyFailure(Object.assign(new Error('rate limit; retry-after: 30'), { status: 429 })).retryAfterMs).toBe(30_000)
     expect(classifyFailure(new Error('429 Retry-After=2.5')).retryAfterMs).toBe(2_500)
+  })
+})
+
+describe('failure detail', () => {
+  it('keeps the separate failures an AggregateError collected and the causes chained below them', () => {
+    const killing = new AggregateError([new Error('cancel threw'), Object.assign(new Error('unknown job bash-1'), { code: 'JOB_NOT_FOUND' })], 'Killing failed')
+    const stopping = new AggregateError([killing, new TypeError('listChildren is not a function')], 'Stopping the background work failed')
+    expect(failureDetail(stopping)).toBe('AggregateError: Stopping the background work failed '
+      + '(AggregateError: Killing failed (Error: cancel threw; Error: unknown job bash-1); TypeError: listChildren is not a function)')
+    expect(failureDetail(new Error('the wrapper', { cause: new Error('the cause') }))).toBe('Error: the wrapper (Error: the cause)')
+  })
+
+  it('describes a plain value and stops at a cycle', () => {
+    expect(failureDetail('plain')).toBe('plain')
+    expect(failureDetail(Object.create(null))).toBe('[object Object]')
+    const odd = new Error('ignored')
+    Object.defineProperties(odd, { name: { value: 7 }, message: { value: 8 } })
+    expect(failureDetail(odd)).toBe('Error')
+    const loop = new Error('loop')
+    loop.cause = loop
+    expect(failureDetail(loop)).toBe('Error: loop (Error: loop)')
   })
 })
